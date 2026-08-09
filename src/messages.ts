@@ -11,7 +11,7 @@ import { commitTreeChanges } from "./memory_tree";
  * correspondence that gets consumed and filed away.
  *
  * Layout:
- *   messages/inbox/<recipient>/<timestamp>--<sender>--<slug>.md
+ *   messages/inbox/<recipient>/<timestamp>_<sender>_<slug>.md
  *   messages/archive/<recipient>/<same filename>
  *
  * Reading does not remove anything. Archiving moves the file, so nothing is
@@ -38,9 +38,11 @@ export type SendResult = {
 function subjectSlug(subject: string): string {
   const slug = subject
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48)
+    // Trim again: the slice may have left a trailing separator.
+    .replace(/_+$/, "");
   return slug.length > 0 ? slug : "message";
 }
 
@@ -51,6 +53,43 @@ function subjectSlug(subject: string): string {
 function stamp(now: number): { iso: string; fileSafe: string } {
   const iso = new Date(now).toISOString();
   return { iso, fileSafe: iso.replace(/[:.]/g, "-") };
+}
+
+/**
+ * The filename for a message. Built here, never supplied by a caller — an
+ * agent choosing filenames produces drift, since the next one will choose
+ * differently.
+ *
+ * Shape is `<iso-timestamp>_<sender>_<subject-slug>.md`. Hyphens appear only
+ * inside the timestamp; everything else is snake_case. Sorting by filename
+ * therefore sorts by time.
+ */
+export function buildMessageFilename(
+  sender: string,
+  subject: string,
+  now: number,
+): string {
+  const { fileSafe } = stamp(now);
+  return `${fileSafe}_${sender}_${subjectSlug(subject)}.md`;
+}
+
+/**
+ * Recover sender, subject and time from a filename. Degrades rather than
+ * throwing, so one hand-created file cannot break an inbox listing.
+ */
+export function parseMessageFilename(filename: string): {
+  sender: string;
+  subject: string;
+  sentAt: string;
+} {
+  const withoutExtension = filename.replace(/\.md$/, "");
+  const [stampPart, senderPart, ...slugParts] = withoutExtension.split("_");
+
+  return {
+    sender: senderPart ?? "unknown",
+    subject: (slugParts.join("_") || "message").replace(/_/g, " "),
+    sentAt: restoreIso(stampPart ?? ""),
+  };
 }
 
 export async function sendMessage(
@@ -73,8 +112,8 @@ export async function sendMessage(
     throw new Error("A message needs a subject.");
   }
 
-  const { iso, fileSafe } = stamp(options.now);
-  const filename = `${fileSafe}--${sender}--${subjectSlug(options.subject)}.md`;
+  const { iso } = stamp(options.now);
+  const filename = buildMessageFilename(sender, options.subject, options.now);
   const path = `${INBOX_PREFIX}${recipient}/${filename}`;
 
   const content =
@@ -205,17 +244,7 @@ function assertMessagePath(path: string): void {
 /** Pull sender, subject and time back out of the filename. */
 function summarize(path: string, recipient: string): MessageSummary {
   const filename = path.split("/").pop() ?? path;
-  const withoutExtension = filename.replace(/\.md$/, "");
-  const [stampPart, senderPart, ...slugParts] = withoutExtension.split("--");
-
-  return {
-    path,
-    filename,
-    recipient,
-    sender: senderPart ?? "unknown",
-    subject: (slugParts.join("--") || "message").replace(/-/g, " "),
-    sentAt: restoreIso(stampPart ?? ""),
-  };
+  return { path, filename, recipient, ...parseMessageFilename(filename) };
 }
 
 /** Turn a file-safe stamp back into a readable ISO instant. */
