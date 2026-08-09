@@ -64,8 +64,8 @@ is ever touched:
 your-repo/
   ix/
     memory/
-      INSTRUCTIONS.md        rules the assistant reads and cannot edit
-      capture-rules.md       what to record, learned over time
+      instructions.md        rules the assistant reads and cannot edit
+      capture_rules.md       what to record, learned over time
       facts/                 what is true about you
       decisions/2026.md      append-only log, one file per year
       messages/inbox/<name>/ notes waiting for an agent
@@ -175,7 +175,7 @@ assistant will keep calling the old schema and report features as missing.
 
 ## Instructions file
 
-The server reads `ix/memory/INSTRUCTIONS.md` but can never write to it. That
+The server reads `ix/memory/instructions.md` but can never write to it. That
 is where you put the rules you want the assistant to follow — what to record,
 what not to, how to phrase corrections. Yours to edit, not its to rewrite.
 

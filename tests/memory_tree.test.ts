@@ -19,7 +19,7 @@ describe("assertManagedPath accepts paths inside the namespace", () => {
     "ix/memory/facts/preferences/food.yaml",
     "ix/memory/facts/home/kitchen.md",
     "ix/memory/decisions/2026.md",
-    "ix/memory/capture-rules.md",
+    "ix/memory/capture_rules.md",
     "ix/memory/a/b/c/deep.md",
   ])("%s", (path) => {
     expect(() => assertManagedPath(path)).not.toThrow();
@@ -83,7 +83,7 @@ describe("assertManagedPath rejects unexpected extensions", () => {
 describe("assertManagedPath protects the instructions file", () => {
   test("refuses to move or delete it", () => {
     // Readable so the assistant can follow the rules; not its to restructure.
-    expect(() => assertManagedPath("ix/memory/INSTRUCTIONS.md")).toThrow(
+    expect(() => assertManagedPath("ix/memory/instructions.md")).toThrow(
       /rules this server follows/,
     );
   });

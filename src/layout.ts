@@ -26,10 +26,10 @@ export const ARCHIVE_PREFIX = `${MESSAGES_PREFIX}archive/`;
 export const FACTS_PREFIX = `${NAMESPACE}facts/`;
 
 /** Mutable rules the assistant has learned about what to capture. */
-export const CAPTURE_RULES_PATH = `${NAMESPACE}capture-rules.md`;
+export const CAPTURE_RULES_PATH = `${NAMESPACE}capture_rules.md`;
 
 /** Readable so the assistant can follow the rules; never writable by it. */
-export const INSTRUCTIONS_PATH = `${NAMESPACE}INSTRUCTIONS.md`;
+export const INSTRUCTIONS_PATH = `${NAMESPACE}instructions.md`;
 
 /** Decision log filenames are per-year: `decisions/2026.md`. */
 export const DECISION_LOG_PATTERN = new RegExp(

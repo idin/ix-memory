@@ -19,8 +19,8 @@ describe("assertReadable accepts paths inside the namespace", () => {
     "ix/memory/facts/core.md",
     "ix/memory/facts/preferences/food.yaml",
     "ix/memory/decisions/2026.md",
-    "ix/memory/capture-rules.md",
-    "ix/memory/INSTRUCTIONS.md",
+    "ix/memory/capture_rules.md",
+    "ix/memory/instructions.md",
     "ix/memory/messages/inbox/ada/note.md",
   ])("%s", (path) => {
     expect(() => assertReadable(path)).not.toThrow();
@@ -47,7 +47,7 @@ describe("assertAppendable accepts the same namespace", () => {
     "ix/memory/facts/core.md",
     "ix/memory/facts/preferences/food.yaml",
     "ix/memory/decisions/2026.md",
-    "ix/memory/capture-rules.md",
+    "ix/memory/capture_rules.md",
   ])("%s", (path) => {
     expect(() => assertAppendable(path)).not.toThrow();
   });
@@ -55,8 +55,8 @@ describe("assertAppendable accepts the same namespace", () => {
 
 describe("assertAppendable protects the instructions file", () => {
   test("readable but not writable", () => {
-    expect(() => assertReadable("ix/memory/INSTRUCTIONS.md")).not.toThrow();
-    expect(() => assertAppendable("ix/memory/INSTRUCTIONS.md")).toThrow(
+    expect(() => assertReadable("ix/memory/instructions.md")).not.toThrow();
+    expect(() => assertAppendable("ix/memory/instructions.md")).toThrow(
       /read-only/,
     );
   });
@@ -81,7 +81,7 @@ describe("path descriptions", () => {
   });
 
   test("appendable description excludes the instructions file", () => {
-    expect(describeAppendablePaths()).toContain("INSTRUCTIONS.md");
+    expect(describeAppendablePaths()).toContain("instructions.md");
     expect(describeAppendablePaths()).toContain("except");
   });
 });
