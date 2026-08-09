@@ -23,7 +23,7 @@ thousands of events a day, use something else.
 
 ## What it does
 
-Eleven tools, in three groups.
+Twelve tools, in four groups.
 
 **Reading**
 | Tool | |
@@ -39,6 +39,11 @@ Eleven tools, in three groups.
 | `move_memory_file` | Rename or reorganize, as one commit. |
 | `delete_memory_file` | Two-step confirmation required. |
 | `revert_memory_to_time` | Restores a past state as a new commit. |
+
+**Derived values**
+| Tool | |
+| --- | --- |
+| `describe_age` | Turns a stored birth date into an age. |
 
 **Messages between agents**
 | Tool | |
@@ -76,6 +81,20 @@ your-repo/
 This matters: you can point it at a repo that already has other things in it.
 The namespace also leaves room for other tools to claim `ix/<something>/`
 without colliding.
+
+## Ages are computed, never stored
+
+Memory holds `2013-05-06`, not "13 years old". A stored age is wrong within a
+year and the file gives no hint that it has gone stale.
+
+`describe_age` exists so an assistant never has to do that arithmetic itself.
+It also decides the phrasing — years and months while the months still say
+something, years alone after — so two answers about the same subject cannot
+disagree. Partial dates (`2013-05`, or `2013`) are accepted and reported as
+approximate.
+
+The same reasoning applies to durations, counts and totals: if it can be
+derived from a stored fact, deriving it is the only answer that stays true.
 
 ## Design decisions worth knowing
 
