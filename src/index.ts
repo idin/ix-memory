@@ -27,6 +27,12 @@ import {
   readMessage,
   sendMessage,
 } from "./messages";
+import {
+  describeTopics,
+  pathForTopic,
+  topicNames,
+  type Topic,
+} from "./topics";
 import type { Env, UserProps } from "./types";
 
 export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
@@ -151,18 +157,27 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
       "create_memory_file",
       {
         description:
-          "Create a new memory file. Use when a topic has outgrown one file and " +
-          "should become a folder of smaller ones — keeping files short matters, " +
-          "since each is loaded whole. Folders are implicit: creating " +
-          "ix/memory/facts/food.yaml creates the folder too. Never overwrites; " +
-          "fails if the path exists. Must end in .md or .yaml.",
+          "Create a new memory file. Say what kind of thing it is and what it " +
+          "is about; the path and filename are derived — you do not choose " +
+          "them, and there is no way to pass one. This is deliberate: agents " +
+          "choosing paths is how a layout drifts. Never overwrites. " +
+          `Kinds: ${describeTopics()}`,
         inputSchema: {
-          path: z.string().describe("New path, e.g. ix/memory/facts/food.yaml"),
+          topic: z
+            .enum(topicNames() as [Topic, ...Topic[]])
+            .describe("What kind of thing this is."),
+          subject: z
+            .string()
+            .describe(
+              'What it is about, in plain words: "kitchen appliances". Use a ' +
+                'slash for a subfolder: "home/kitchen".',
+            ),
           content: z.string().describe("Initial file content."),
           commit_message: z.string().describe("Conventional Commits format."),
         },
       },
-      async ({ path, content, commit_message }) => {
+      async ({ topic, subject, content, commit_message }) => {
+        const path = pathForTopic(topic, subject, Date.now());
         const result = await createMemoryFile(
           this.repoConfig(),
           path,
@@ -181,24 +196,32 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
     );
 
     this.server.registerTool(
-      "move_memory_file",
+      "rename_memory_subject",
       {
         description:
-          "Move or rename a memory file, as one commit. Use when reorganizing — " +
-          "for example splitting ix/memory/facts/home.md into " +
-          "ix/memory/facts/home/kitchen.md. Refuses to overwrite an existing " +
-          "destination.",
+          "Rename an existing memory file by giving it a new subject, as one " +
+          "commit. The new path is derived the same way it was when the file " +
+          "was created, so a rename cannot produce a filename that create " +
+          "would not have produced. Refuses to overwrite an existing file.",
         inputSchema: {
-          from_path: z.string().describe("Existing memory file path."),
-          to_path: z.string().describe("New path for it."),
+          from_path: z
+            .string()
+            .describe("Existing path, from list_memory_files."),
+          topic: z
+            .enum(topicNames() as [Topic, ...Topic[]])
+            .describe("What kind of thing it is — may differ from before."),
+          new_subject: z
+            .string()
+            .describe('New subject in plain words, e.g. "home/kitchen".'),
           commit_message: z.string().describe("Conventional Commits format."),
         },
       },
-      async ({ from_path, to_path, commit_message }) => {
+      async ({ from_path, topic, new_subject, commit_message }) => {
+        const toPath = pathForTopic(topic, new_subject, Date.now());
         const result = await moveMemoryFile(
           this.repoConfig(),
           from_path,
-          to_path,
+          toPath,
           commit_message,
         );
         return {
