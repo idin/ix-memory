@@ -1,0 +1,156 @@
+import { Octokit } from "octokit";
+
+import {
+  INSTRUCTIONS_PATH,
+  NAMESPACE,
+  assertWellFormed,
+  describeLayout,
+  isWithinNamespace,
+} from "./layout";
+
+export type MemoryRepoConfig = {
+  owner: string;
+  repo: string;
+  branch: string;
+  token: string;
+};
+
+/**
+ * Anything inside the namespace can be read. Nothing outside it can, even
+ * though the token could — the repo may hold things that are none of this
+ * server's business.
+ */
+export function assertReadable(path: string): void {
+  assertWellFormed(path);
+  if (!isWithinNamespace(path)) {
+    throw new Error(
+      `Path not readable by this server: ${path}. `
+        + `It only reads inside ${NAMESPACE}.`,
+    );
+  }
+}
+
+/**
+ * Writable is the same set, minus the instructions file. That one exists so
+ * the assistant can read the rules it is meant to follow; letting it rewrite
+ * those rules would defeat the point.
+ */
+export function assertAppendable(path: string): void {
+  assertWellFormed(path);
+  if (path === INSTRUCTIONS_PATH) {
+    throw new Error(
+      `${path} holds the rules this server follows and is read-only to it. `
+        + "Edit it yourself if the rules should change.",
+    );
+  }
+  if (!isWithinNamespace(path)) {
+    throw new Error(
+      `Path not appendable by this server: ${path}. `
+        + `It only writes inside ${NAMESPACE}.`,
+    );
+  }
+}
+
+export function describeReadablePaths(): string {
+  return `anything under ${NAMESPACE} — ${describeLayout()}`;
+}
+
+export function describeAppendablePaths(): string {
+  return (
+    `anything under ${NAMESPACE} except ${INSTRUCTIONS_PATH} — `
+    + describeLayout()
+  );
+}
+
+/**
+ * Read one memory file. Returns its full text plus the blob sha, which the
+ * caller needs in order to append without clobbering a concurrent edit.
+ */
+export async function readMemory(
+  config: MemoryRepoConfig,
+  path: string,
+): Promise<{ path: string; content: string; sha: string }> {
+  assertReadable(path);
+  const octokit = new Octokit({ auth: config.token });
+
+  const response = await octokit.rest.repos.getContent({
+    owner: config.owner,
+    repo: config.repo,
+    path,
+    ref: config.branch,
+  });
+
+  const file = response.data;
+  if (Array.isArray(file) || file.type !== "file") {
+    throw new Error(`Not a file: ${path}`);
+  }
+
+  return {
+    path,
+    content: decodeBase64(file.content),
+    sha: file.sha,
+  };
+}
+
+/**
+ * Append text to the end of a memory file and commit directly to the branch.
+ *
+ * Appends rather than replaces: this server has no tool that can delete or
+ * rewrite existing content, so a compromised or confused caller cannot erase
+ * history. Corrections are made by appending a superseding entry, per the
+ * repo's "superseded, not deleted" rule.
+ */
+export async function appendMemory(
+  config: MemoryRepoConfig,
+  path: string,
+  text: string,
+  commitMessage: string,
+): Promise<{ path: string; commitSha: string; bytesAppended: number }> {
+  assertAppendable(path);
+
+  if (text.trim().length === 0) {
+    throw new Error("Refusing to append empty text.");
+  }
+
+  const octokit = new Octokit({ auth: config.token });
+  const existing = await readMemory(config, path);
+
+  const separator = existing.content.endsWith("\n") ? "" : "\n";
+  const updated = `${existing.content}${separator}${text.trimEnd()}\n`;
+
+  const response = await octokit.rest.repos.createOrUpdateFileContents({
+    owner: config.owner,
+    repo: config.repo,
+    path,
+    message: commitMessage,
+    content: encodeBase64(updated),
+    sha: existing.sha,
+    branch: config.branch,
+  });
+
+  const commitSha = response.data.commit.sha;
+  if (!commitSha) {
+    throw new Error(`Commit to ${path} returned no sha.`);
+  }
+
+  return {
+    path,
+    commitSha,
+    bytesAppended: text.trimEnd().length,
+  };
+}
+
+function decodeBase64(value: string): string {
+  const binary = atob(value.replace(/\n/g, ""));
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function encodeBase64(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
