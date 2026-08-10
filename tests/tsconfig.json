@@ -1,0 +1,14 @@
+{
+  // The tests need both runtimes. Most of them run inside workerd, but the
+  // ones that inspect the repository or drive the sandbox shell out to git and
+  // read environment variables, which only Node provides.
+  //
+  // The source tree deliberately does not get this config: `src/` must compile
+  // against the Workers types alone, or something that cannot exist in a
+  // Worker could reach production without the typechecker objecting.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types", "node"]
+  },
+  "include": ["**/*.ts"]
+}

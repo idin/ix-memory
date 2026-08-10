@@ -13,7 +13,7 @@ import {
   readMemory,
   type MemoryRepoConfig,
 } from "./memory_repo";
-import { applyRevert, planRevert } from "./memory_revert";
+import { applyRevert, planRevert, revertOperation } from "./memory_revert";
 import {
   createMemoryFile,
   deleteMemoryFile,
@@ -387,7 +387,11 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
       },
       async ({ timestamp, confirm }) => {
         const plan = await planRevert(this.repoConfig(), timestamp);
-        const operation = `revert:${plan.targetCommitSha}`;
+        // Bound to the plan's file lists, not only its target commit. The
+        // plan is recomputed on this call, so anything written since the
+        // preview appears in it — and a token that ignored that would be
+        // authorising deletions the user was never shown.
+        const operation = await revertOperation(plan);
         const now = Date.now();
 
         const summary =
@@ -425,9 +429,11 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
         );
         if (!valid) {
           throw new Error(
-            "Confirmation token is invalid, expired, or was issued for a " +
-              "different target commit. Call again without `confirm` to get a " +
-              "fresh plan and token.",
+            "Confirmation token does not match this plan. Either it expired, " +
+              "or the memory repository changed since the plan was shown — a " +
+              "file written in between would be deleted by this revert " +
+              "without having appeared in what was approved. Call again " +
+              "without `confirm` to see what would happen now.",
           );
         }
 

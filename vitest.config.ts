@@ -40,6 +40,22 @@ export default defineConfig({
           include: ["tests/secret_hygiene.test.ts"],
         },
       },
+      {
+        test: {
+          name: "integration",
+          environment: "node",
+          include: ["tests/integration/**/*.integration.test.ts"],
+          // Each test resets the sandbox by force-pushing to GitHub and then
+          // makes several API calls, so these are slow in a way no amount of
+          // tuning will fix.
+          testTimeout: 120_000,
+          hookTimeout: 120_000,
+          // They mutate one shared repository. Running them at the same time
+          // would make each one part of the others' setup.
+          fileParallelism: false,
+          sequence: { concurrent: false },
+        },
+      },
     ],
   },
 });
