@@ -1,0 +1,30 @@
+#!/bin/sh
+#
+# Refuse to commit a secret.
+#
+# Runs against the staged changes only, so it costs nothing on a normal commit
+# and catches the credential before it exists in history. Once a secret is
+# committed, removing it means rewriting history and rotating the credential
+# anyway — so the only cheap moment to catch it is this one.
+#
+# Installed by scripts/install_git_hooks.sh. Not managed by git itself:
+# .git/hooks is not tracked, so a fresh clone has to run the installer.
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+	echo "pre-commit: gitleaks is not installed, so nothing checked this commit."
+	echo "            brew install gitleaks"
+	exit 1
+fi
+
+if ! gitleaks git --staged --no-banner --redact; then
+	echo
+	echo "pre-commit: refusing to commit — the change above looks like a secret."
+	echo
+	echo "If it is real: take it out of the change, and rotate it. A credential"
+	echo "that reached a commit should be treated as compromised even if the"
+	echo "commit never leaves this machine."
+	echo
+	echo "If it is not: add it to .gitleaks.toml with a note saying why, so the"
+	echo "next scan stays trustworthy. Do not use --no-verify."
+	exit 1
+fi
