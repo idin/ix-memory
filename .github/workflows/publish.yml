@@ -1,0 +1,59 @@
+name: publish
+
+# Publishing happens here rather than from a laptop, and without a token.
+#
+# npm's trusted publishing lets this workflow prove which repository and which
+# workflow it is, using a short-lived credential GitHub mints for the run. npm
+# checks that against the publisher configured for the package. Nothing secret
+# is stored in this repository, in npm, or on anybody's machine — so there is
+# nothing to leak, rotate, or forget to revoke.
+#
+# It also means a release cannot skip the tests, which a local `npm publish`
+# always could.
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # Lets GitHub mint the OIDC token npm verifies. Without it the publish
+      # fails with a confusing permissions error rather than an obvious one.
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      # A tag that disagrees with package.json would publish a version nobody
+      # asked for, and the mistake is invisible until someone installs it.
+      - name: Check the tag matches the version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version=$(node -p "require('./package.json').version")
+          if [ "$tag_version" != "$package_version" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package.json version ${package_version}." >&2
+            exit 1
+          fi
+
+      # Trusted publishing needs a recent npm; the runner's bundled version
+      # predates it.
+      - run: npm install -g npm@latest
+
+      - run: npm publish --access public
