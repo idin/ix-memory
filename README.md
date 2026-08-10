@@ -158,11 +158,12 @@ Generate a client secret and keep both values.
 ### 4. Configure and deploy
 
 ```sh
-git clone https://github.com/idin/ix-memory.git
-cd ix-memory
-npm install
+mkdir my-memory-server && cd my-memory-server
+npm init -y
+npm install @ixmachina/memory wrangler
 
-cp wrangler.example.jsonc wrangler.jsonc
+curl -o wrangler.jsonc \
+  https://raw.githubusercontent.com/idin/ix-memory/main/wrangler.example.jsonc
 # Fill in the REPLACE_WITH_ values.
 
 npx wrangler kv namespace create OAUTH_KV
@@ -170,6 +171,17 @@ npx wrangler kv namespace create OAUTH_KV
 
 npx wrangler deploy
 ```
+
+Point `main` in `wrangler.jsonc` at a one-line entry file:
+
+```ts
+// src/worker.ts
+export { default } from "@ixmachina/memory/worker";
+export { MemoryMCP } from "@ixmachina/memory";
+```
+
+Both exports are needed: the default is the worker, and `MemoryMCP` is the
+Durable Object class your `wrangler.jsonc` binds by name.
 
 Then set the secrets. Piping them in keeps them out of your shell history:
 
@@ -185,6 +197,44 @@ custom connector, using your worker URL with `/sse` appended.
 
 Connectors are not enabled per conversation by default — turn it on from the
 "+" menu in each chat where you want it.
+
+## Extending it
+
+Subclass rather than fork. Two things are meant to be overridden, and both
+exist because a package cannot assume what a deployment has.
+
+**Where failures go.** By default they are written to the console, which
+Workers observability retains. Point them somewhere durable if you want to
+read them back weeks later:
+
+```ts
+import { MemoryMCP as Base } from "@ixmachina/memory";
+
+export class MemoryMCP extends Base {
+  async init() {
+    this.failureSink = (failure) => myDatabase.insert(failure);
+    await super.init();
+  }
+}
+```
+
+**Extra tools.** `registerTool` is protected, and going through it rather than
+`this.server.registerTool` is what gets your tool's failures recorded like
+every other one:
+
+```ts
+export class MemoryMCP extends Base {
+  async init() {
+    await super.init();
+    this.registerTool("my_tool", { description: "…", inputSchema: {} },
+      async () => ({ content: [{ type: "text", text: "…" }] }));
+  }
+}
+```
+
+Export the subclass under the name your `wrangler.jsonc` binds — Durable Object
+bindings are by class name, and renaming one needs a migration that discards
+existing state.
 
 ### A note on updating
 
