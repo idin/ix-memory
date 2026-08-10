@@ -33,6 +33,11 @@ import {
   topicNames,
   type Topic,
 } from "./topics";
+import {
+  consoleFailureSink,
+  reportingFailures,
+  type FailureSink,
+} from "./tool_errors";
 import type { Env, UserProps } from "./types";
 
 export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
@@ -50,6 +55,49 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
     };
   }
 
+  /**
+   * Where tool failures are written.
+   *
+   * Overridable so a deployment can send failures somewhere durable. The
+   * default writes to the console, which Workers observability already
+   * captures, so failures are recorded whether or not anyone configures
+   * anything.
+   */
+  protected failureSink: FailureSink = consoleFailureSink;
+
+  /**
+   * Register a tool whose failures are recorded rather than thrown.
+   *
+   * Every tool goes through here rather than calling `registerTool`
+   * directly. A tool registered the direct way would still work, which is
+   * exactly the problem: it would lose its failures silently, and the
+   * omission would be invisible until the day someone needed the log.
+   *
+   * @param name - Tool name, as callers see it.
+   * @param definition - Description and input schema.
+   * @param handler - The tool body.
+   * @returns Nothing.
+   */
+  private registerTool<InputSchema extends z.ZodRawShape>(
+    name: string,
+    definition: { description: string; inputSchema: InputSchema },
+    handler: (args: { [Key in keyof InputSchema]: z.infer<InputSchema[Key]> }) => Promise<unknown>,
+  ): void {
+    type Arguments = { [Key in keyof InputSchema]: z.infer<InputSchema[Key]> };
+    this.server.registerTool(
+      name,
+      definition as Parameters<McpServer["registerTool"]>[1],
+      (async (args: Arguments) =>
+        reportingFailures({
+          tool: name,
+          args,
+          login: this.props?.login ?? null,
+          sink: this.failureSink,
+          run: () => handler(args),
+        })) as unknown as Parameters<McpServer["registerTool"]>[2],
+    );
+  }
+
   async init() {
     this.registerReadTools();
     this.registerAppendTool();
@@ -60,7 +108,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   }
 
   private registerReadTools() {
-    this.server.registerTool(
+    this.registerTool(
       "read_memory",
       {
         description:
@@ -79,7 +127,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
       },
     );
 
-    this.server.registerTool(
+    this.registerTool(
       "list_memory_files",
       {
         description:
@@ -104,7 +152,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   }
 
   private registerAppendTool() {
-    this.server.registerTool(
+    this.registerTool(
       "append_memory",
       {
         description:
@@ -153,7 +201,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   }
 
   private registerStructureTools() {
-    this.server.registerTool(
+    this.registerTool(
       "create_memory_file",
       {
         description:
@@ -195,7 +243,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
       },
     );
 
-    this.server.registerTool(
+    this.registerTool(
       "rename_memory_subject",
       {
         description:
@@ -237,7 +285,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
       },
     );
 
-    this.server.registerTool(
+    this.registerTool(
       "delete_memory_file",
       {
         description:
@@ -313,7 +361,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   }
 
   private registerRevertTool() {
-    this.server.registerTool(
+    this.registerTool(
       "revert_memory_to_time",
       {
         description:
@@ -404,7 +452,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   }
 
   private registerDerivedTools() {
-    this.server.registerTool(
+    this.registerTool(
       "describe_age",
       {
         description:
@@ -441,7 +489,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   }
 
   private registerMessageTools() {
-    this.server.registerTool(
+    this.registerTool(
       "send_message",
       {
         description:
@@ -480,7 +528,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
       },
     );
 
-    this.server.registerTool(
+    this.registerTool(
       "check_inbox",
       {
         description:
@@ -542,7 +590,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
       },
     );
 
-    this.server.registerTool(
+    this.registerTool(
       "read_message",
       {
         description:
@@ -560,7 +608,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
       },
     );
 
-    this.server.registerTool(
+    this.registerTool(
       "archive_message",
       {
         description:
