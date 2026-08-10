@@ -5,7 +5,7 @@
   // wrangler.jsonc is gitignored, so your account details stay yours.
 
   "name": "ix-memory",
-  "main": "src/index.ts",
+  "main": "src/worker.ts",
   "compatibility_date": "2025-03-10",
   "compatibility_flags": ["nodejs_compat"],
 

@@ -1,17 +1,12 @@
 {
   "name": "@ixmachina/memory",
   "version": "0.1.0",
-  "type": "module",
   "description": "MCP server giving Claude a long-term memory in a GitHub repo you own",
   "license": "MIT",
   "author": "Idin K",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/idin/ix-memory.git"
-  },
-  "homepage": "https://github.com/idin/ix-memory#readme",
-  "bugs": {
-    "url": "https://github.com/idin/ix-memory/issues"
   },
   "keywords": [
     "mcp",
@@ -21,6 +16,13 @@
     "cloudflare-workers",
     "github"
   ],
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./worker": "./src/worker.ts",
+    "./package.json": "./package.json"
+  },
   "files": [
     "src",
     "wrangler.example.jsonc",
@@ -51,5 +53,9 @@
     "typescript": "^5.8.2",
     "vitest": "^4.1.10",
     "wrangler": "^4.120.0"
+  },
+  "homepage": "https://github.com/idin/ix-memory#readme",
+  "bugs": {
+    "url": "https://github.com/idin/ix-memory/issues"
   }
 }

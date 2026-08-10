@@ -1,11 +1,9 @@
-import OAuthProvider from "@cloudflare/workers-oauth-provider";
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import { confirmationToken, isValidConfirmation } from "./confirmation";
 import { ageAt, describeAge, parsePartialDate } from "./age";
-import { GitHubHandler } from "./github_handler";
 import {
   appendMemory,
   describeAppendablePaths,
@@ -46,7 +44,11 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
     version: "0.2.0",
   });
 
-  private repoConfig(): MemoryRepoConfig {
+  /**
+   * Where the memory lives. Protected so a deployment that subclasses this
+   * can reach the same repository its added tools need to read.
+   */
+  protected repoConfig(): MemoryRepoConfig {
     return {
       owner: this.env.MEMORY_REPO_OWNER,
       repo: this.env.MEMORY_REPO_NAME,
@@ -78,7 +80,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
    * @param handler - The tool body.
    * @returns Nothing.
    */
-  private registerTool<InputSchema extends z.ZodRawShape>(
+  protected registerTool<InputSchema extends z.ZodRawShape>(
     name: string,
     definition: { description: string; inputSchema: InputSchema },
     handler: (args: { [Key in keyof InputSchema]: z.infer<InputSchema[Key]> }) => Promise<unknown>,
@@ -640,13 +642,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   }
 }
 
-export default new OAuthProvider({
-  apiHandlers: {
-    "/sse": MemoryMCP.serveSSE("/sse"),
-    "/mcp": MemoryMCP.serve("/mcp"),
-  },
-  defaultHandler: GitHubHandler as never,
-  authorizeEndpoint: "/authorize",
-  tokenEndpoint: "/token",
-  clientRegistrationEndpoint: "/register",
-});
+export { GitHubHandler } from "./github_handler";
+export type { Env, UserProps } from "./types";
+export type { FailureSink, ToolFailure } from "./tool_errors";
+export type { MemoryRepoConfig } from "./memory_repo";
