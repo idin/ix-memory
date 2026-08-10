@@ -37,6 +37,11 @@ jobs:
 
       - run: npm ci
 
+      # See the note in test.yml: the real config is gitignored, and the
+      # worker tests need one to boot against.
+      - name: Use the example worker config
+        run: cp wrangler.example.jsonc wrangler.jsonc
+
       - run: npm run typecheck
 
       - run: npm test

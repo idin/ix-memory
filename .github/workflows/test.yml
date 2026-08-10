@@ -26,6 +26,13 @@ jobs:
 
       - run: npm ci
 
+      # wrangler.jsonc is gitignored because it carries one account's resource
+      # ids. The worker tests still need a config to boot workerd against, and
+      # the example is exactly that: the same shape with placeholder values.
+      # Nothing here reaches Cloudflare, so placeholders are sufficient.
+      - name: Use the example worker config
+        run: cp wrangler.example.jsonc wrangler.jsonc
+
       - run: npm run typecheck
 
       - run: npm test
