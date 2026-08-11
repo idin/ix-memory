@@ -39,16 +39,16 @@ import {
 import type { Env, UserProps } from "./types";
 
 export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
-  // This is what a person sees in their connector list, beside Gmail and
-  // Google Drive, so it is written the way those are rather than as a slug.
-  // Custom connectors get a generic icon whatever the server says, so the
-  // name is the only thing identifying it.
+  // `name` identifies the server; `title` is what a person reads. The spec
+  // separates them for exactly this reason, and clients namespace tools by
+  // `name` — Claude Code produces `mcp__<name>__<tool>` — so it is a slug,
+  // matching the package and the repository.
   //
-  // Deliberately not configurable. Every deployment showing the same name is
-  // what makes the name recognisable; per-deployment names would trade that
-  // away for nothing anyone wants. Short so it stays readable in a list.
+  // Neither is configurable. A server that answers to a different name in
+  // every deployment is harder to write about, support, or recognise.
   server = new McpServer({
-    name: "Ix Memory",
+    name: "ix-memory",
+    title: "Ix Memory",
     version: "0.2.0",
   });
 
