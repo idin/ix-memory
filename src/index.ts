@@ -45,10 +45,10 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   // name is the only thing identifying it.
   //
   // Deliberately not configurable. Every deployment showing the same name is
-  // what makes the name mean something; per-deployment names would trade that
-  // away for nothing anyone wants.
+  // what makes the name recognisable; per-deployment names would trade that
+  // away for nothing anyone wants. Short so it stays readable in a list.
   server = new McpServer({
-    name: "IxMachina Memory",
+    name: "Ix Memory",
     version: "0.2.0",
   });
 
