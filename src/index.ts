@@ -41,6 +41,12 @@ import {
   reportingFailures,
   type FailureSink,
 } from "./tool_errors";
+import {
+  describeSuggestionMaterial,
+  readWholeStore,
+  surveyContent,
+  surveyRules,
+} from "./suggestions";
 import { reminderFor, withReminder } from "./tool_reminders";
 import type { Env, UserProps } from "./types";
 
@@ -530,6 +536,73 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   }
 
   private registerDerivedTools() {
+    this.registerTool(
+      "survey_for_improvements",
+      {
+        description:
+          "Gather evidence for improvements the user might want to make, in "
+          + "one of three areas. Call this only when the user asks — it is "
+          + "theirs to act on. Returns findings and the rules a proposal must "
+          + "follow.\n\n"
+          + "content: mechanical checks over the store — files past the length "
+          + "at which they should become folders, bare bank abbreviations, "
+          + "values that look derived and will be wrong later, files nothing "
+          + "links to.\n"
+          + "tools: which tools keep failing, and whether they fail the same "
+          + "way each time.\n"
+          + "rules: which rules are not working, read from the misjudgement "
+          + "log. A pattern recurring after a rule was written to prevent it "
+          + "means that rule failed.\n\n"
+          + "This tool reads. It changes nothing. Write the proposal as one "
+          + "file in future/proposals/ and let the user decide.",
+        inputSchema: {
+          area: z
+            .enum(["content", "tools", "rules"])
+            .describe("Which area to survey. Ask for one, not all three."),
+        },
+      },
+      async ({ area }) => {
+        if (area === "content") {
+          const files = await readWholeStore(this.repoConfig());
+          return {
+            content: [
+              {
+                type: "text",
+                text: describeSuggestionMaterial(surveyContent(files)),
+              },
+            ],
+          };
+        }
+
+        if (area === "rules") {
+          const material = await gatherDigestMaterial(this.repoConfig());
+          return {
+            content: [
+              {
+                type: "text",
+                text: describeSuggestionMaterial(surveyRules(material.entries)),
+              },
+            ],
+          };
+        }
+
+        // Tool failures are the deployment's business — the library records
+        // them to a sink it does not read back. A deployment that keeps them
+        // overrides this.
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                "This deployment does not keep tool failures where they can "
+                + "be read back. The library writes them to a sink; whether "
+                + "they are stored is the deployment's choice.",
+            },
+          ],
+        };
+      },
+    );
+
     this.registerTool(
       "gather_digest_material",
       {
