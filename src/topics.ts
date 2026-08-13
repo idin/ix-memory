@@ -1,3 +1,4 @@
+import { assertFilenameFits } from "./filename_limit";
 import { DECISIONS_PREFIX, FACTS_PREFIX, NAMESPACE } from "./layout";
 
 /**
@@ -83,12 +84,6 @@ export function subjectToSlug(subject: string): string {
         + '"kitchen appliances" or "home/kitchen".',
     );
   }
-  if (cleaned.length > 96) {
-    throw new Error(
-      `That subject is too long (${cleaned.length} characters after cleaning). `
-        + "Keep it under 96.",
-    );
-  }
   return cleaned;
 }
 
@@ -109,6 +104,9 @@ export function pathForTopic(
   const config = TOPICS[topic];
   const slug = subjectToSlug(subject);
 
+  // The limit applies to the filename, not to the path. A subject with
+  // slashes becomes directories, and those are not part of the name that has
+  // to fit.
   if (config.dated) {
     // Date first so a directory listing sorts chronologically. The date keeps
     // its hyphens; everything after the separator is snake_case.
@@ -116,10 +114,17 @@ export function pathForTopic(
       ? `${slug.slice(0, slug.lastIndexOf("/") + 1)}`
       : "";
     const name = slug.slice(slug.lastIndexOf("/") + 1);
-    return `${config.prefix}${directory}${isoDate(now)}_${name}${config.extension}`;
+    const filename = `${isoDate(now)}_${name}${config.extension}`;
+    assertFilenameFits(filename, `A subject of "${subject}"`);
+    return `${config.prefix}${directory}${filename}`;
   }
 
-  return `${config.prefix}${slug}${config.extension}`;
+  const directory = slug.includes("/")
+    ? slug.slice(0, slug.lastIndexOf("/") + 1)
+    : "";
+  const filename = `${slug.slice(slug.lastIndexOf("/") + 1)}${config.extension}`;
+  assertFilenameFits(filename, `A subject of "${subject}"`);
+  return `${config.prefix}${directory}${filename}`;
 }
 
 /** Where a decision is appended. One file per year, created on demand. */

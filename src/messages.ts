@@ -1,5 +1,7 @@
 import { Octokit } from "octokit";
 
+import { assertFilenameFits } from "./filename_limit";
+
 import { agentDirectoryName, matchAgentName } from "./agent_names";
 import { ARCHIVE_PREFIX, INBOX_PREFIX, assertWellFormed } from "./layout";
 import type { MemoryRepoConfig } from "./memory_repo";
@@ -34,15 +36,18 @@ export type SendResult = {
   recipient: string;
 };
 
-/** Slug used in the filename so an inbox listing is readable at a glance. */
+/**
+ * Slug used in the filename so an inbox listing is readable at a glance.
+ *
+ * No length limit here. This used to slice at 48 characters, which produced
+ * subjects cut mid-word with nothing said about it. The limit belongs on the
+ * finished filename, where the timestamp and sender are also counted.
+ */
 function subjectSlug(subject: string): string {
   const slug = subject
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 48)
-    // Trim again: the slice may have left a trailing separator.
-    .replace(/_+$/, "");
+    .replace(/^_+|_+$/g, "");
   return slug.length > 0 ? slug : "message";
 }
 
@@ -70,7 +75,8 @@ export function buildMessageFilename(
   now: number,
 ): string {
   const { fileSafe } = stamp(now);
-  return `${fileSafe}_${sender}_${subjectSlug(subject)}.md`;
+  const filename = `${fileSafe}_${sender}_${subjectSlug(subject)}.md`;
+  return assertFilenameFits(filename, `A message subject of "${subject}"`);
 }
 
 /**

@@ -51,8 +51,11 @@ describe("subjectToSlug", () => {
     expect(() => subjectToSlug("   ")).toThrow();
   });
 
-  test("an overlong subject is refused rather than silently truncated", () => {
-    expect(() => subjectToSlug("a".repeat(200))).toThrow(/too long/);
+  test("slugging itself no longer imposes a length of its own", () => {
+    // The limit moved to the finished filename, where the date and extension
+    // are also counted. Two derivations each carrying their own number is how
+    // they came to disagree.
+    expect(subjectToSlug("a".repeat(200))).toHaveLength(200);
   });
 });
 

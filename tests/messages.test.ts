@@ -34,10 +34,12 @@ describe("buildMessageFilename", () => {
     );
   });
 
-  test("a long subject is truncated without a trailing separator", () => {
+  test("a long subject is kept whole, not truncated", () => {
+    // This asserted a slice at 48 characters until 2026-08-13. That was the
+    // bug: four files in the memory repo carry names cut exactly there.
     const name = buildMessageFilename("kip", "a".repeat(80), WHEN);
     expect(name.endsWith("_.md")).toBe(false);
-    expect(name).toMatch(/_a{48}\.md$/);
+    expect(name).toMatch(/_a{80}\.md$/);
   });
 
   test("a subject of only punctuation still yields a usable name", () => {
