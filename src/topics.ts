@@ -1,5 +1,12 @@
 import { assertFilenameFits } from "./filename_limit";
-import { DECISIONS_PREFIX, FACTS_PREFIX, NAMESPACE } from "./layout";
+import {
+  DECISIONS_PREFIX,
+  FACTS_PREFIX,
+  IDEAS_PREFIX,
+  MISJUDGEMENTS_PREFIX,
+  PROPOSALS_PREFIX,
+  TODOS_PREFIX,
+} from "./layout";
 
 /**
  * Where a new file goes, decided here rather than by whoever is writing it.
@@ -30,10 +37,33 @@ export const TOPICS = {
     description: "a list of owned things, as YAML entries",
   },
   todo: {
-    prefix: `${NAMESPACE}todos/open/`,
+    prefix: TODOS_PREFIX,
     extension: ".md",
     dated: true,
-    description: "a task to be done, filed under todos/open",
+    description: "a task to be done, filed under future/todos",
+  },
+  proposal: {
+    prefix: PROPOSALS_PREFIX,
+    extension: ".md",
+    dated: true,
+    description:
+      "something suggested but not decided — the user rules on it, and it "
+      + "moves to past/ either way",
+  },
+  idea: {
+    prefix: IDEAS_PREFIX,
+    extension: ".md",
+    dated: true,
+    description:
+      "a thought worth keeping that is not yet a proposal and may never be",
+  },
+  misjudgement: {
+    prefix: MISJUDGEMENTS_PREFIX,
+    extension: ".md",
+    dated: true,
+    description:
+      "something an agent got wrong: what was claimed, what was wrong with "
+      + "it, who caught it, and the pattern it belongs to",
   },
   decision: {
     prefix: DECISIONS_PREFIX,

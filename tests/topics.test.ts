@@ -76,9 +76,28 @@ describe("pathForTopic puts things where they belong", () => {
     );
   });
 
-  test("a todo is dated and filed under open", () => {
+  test("a todo is dated and filed under future", () => {
     expect(pathForTopic("todo", "check the lease", WHEN)).toBe(
-      "ix/memory/todos/open/2026-08-09_check_the_lease.md",
+      "ix/memory/future/todos/2026-08-09_check_the_lease.md",
+    );
+  });
+
+  test("a proposal is dated and filed under future", () => {
+    expect(pathForTopic("proposal", "move the dns to cloudflare", WHEN)).toBe(
+      "ix/memory/future/proposals/2026-08-09_move_the_dns_to_cloudflare.md",
+    );
+  });
+
+  test("an idea is dated and filed under future", () => {
+    expect(pathForTopic("idea", "a tool that compares things", WHEN)).toBe(
+      "ix/memory/future/ideas/2026-08-09_a_tool_that_compares_things.md",
+    );
+  });
+
+  test("a misjudgement is dated and filed on its own", () => {
+    // The mirror of decisions/: what was wrong, beside what was chosen.
+    expect(pathForTopic("misjudgement", "asserted a path without checking", WHEN)).toBe(
+      "ix/memory/misjudgements/2026-08-09_asserted_a_path_without_checking.md",
     );
   });
 

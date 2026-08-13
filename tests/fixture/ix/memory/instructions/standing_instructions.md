@@ -9,7 +9,9 @@ anybody.
 
 - `facts/` — what is true about the person, one file per subject.
 - `decisions/` — one file per year, appended to, never rewritten.
-- `todos/open/` — one file per task, dated.
+- `future/todos/` — one file per task, dated. Sitting in the folder is
+  what open means.
+- `past/` — what resolved: finished todos, decided proposals.
 - `messages/inbox/<agent>/` — notes between agents.
 
 ## Rules

@@ -69,7 +69,7 @@ GIT_AUTHOR_DATE="2026-01-12T14:30:00Z" GIT_COMMITTER_DATE="2026-01-12T14:30:00Z"
 	git commit --quiet -m "feat: record who this invented person is"
 
 # Commit three: the todo.
-cp -R "$fixture_directory/ix/memory/todos" ix/memory/
+cp -R "$fixture_directory/ix/memory/future" ix/memory/
 git add -A
 GIT_AUTHOR_DATE="2026-01-15T09:05:00Z" GIT_COMMITTER_DATE="2026-01-15T09:05:00Z" \
 	git commit --quiet -m "feat: open a todo about the extractor fan"

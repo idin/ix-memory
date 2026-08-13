@@ -62,7 +62,7 @@ describe("planning a revert", () => {
   test("changes nothing on its own", async () => {
     await planRevert(config, BEFORE_THE_TODO);
 
-    const stillThere = await readMemory(config, "ix/memory/todos/open/2026-01-15_replace_extractor_fan.md");
+    const stillThere = await readMemory(config, "ix/memory/future/todos/2026-01-15_replace_extractor_fan.md");
     expect(stillThere.content).toContain("extractor fan");
   });
 });
@@ -76,7 +76,15 @@ describe("applying a revert", () => {
       "feat: add a file after the fixture",
     );
 
-    const plan = await planRevert(config, AFTER_THE_FIXTURE);
+    // Retry the plan, not just the assertion after it. planRevert reads the
+    // git tree, and a file GitHub has accepted is not always in the tree it
+    // serves a moment later — the plan then comes back empty and applyRevert
+    // refuses it as nothing to do.
+    const plan = await eventually(async () => {
+      const planned = await planRevert(config, AFTER_THE_FIXTURE);
+      expect(planned.removed).toContain("ix/memory/facts/added_later.md");
+      return planned;
+    });
     await applyRevert(config, plan, "chore: revert to the fixture");
 
     await eventually(async () => {

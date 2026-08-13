@@ -26,6 +26,35 @@ export const ARCHIVE_PREFIX = `${MESSAGES_PREFIX}archive/`;
 export const FACTS_PREFIX = `${NAMESPACE}facts/`;
 
 /**
+ * Work not yet done, and thinking not yet acted on.
+ *
+ * Sitting in the folder is what "open" means, so there is no `open/` level
+ * inside it. An item leaves when it resolves.
+ */
+export const FUTURE_PREFIX = `${NAMESPACE}future/`;
+export const PROPOSALS_PREFIX = `${FUTURE_PREFIX}proposals/`;
+export const IDEAS_PREFIX = `${FUTURE_PREFIX}ideas/`;
+export const TODOS_PREFIX = `${FUTURE_PREFIX}todos/`;
+
+/**
+ * What `future/` held once it resolved.
+ *
+ * The temporal sibling of `future/`, which is why it is not called `done/`:
+ * a decided proposal, an acted-on idea and a finished todo are all equally
+ * past, and only one of the three is "done" in any natural sense.
+ */
+export const PAST_PREFIX = `${NAMESPACE}past/`;
+
+/**
+ * Where an agent's misjudgements are recorded, one file per entry.
+ *
+ * The mirror of `decisions/`. That logs what was chosen and why; this logs
+ * what was wrong and why, so the pattern can be seen across entries rather
+ * than re-derived each time.
+ */
+export const MISJUDGEMENTS_PREFIX = `${NAMESPACE}misjudgements/`;
+
+/**
  * Mutable rules the assistant has learned about what to capture, one file per
  * rule. A folder rather than a file since 2026-08-13: rules are organised, not
  * accumulated in one growing document.
@@ -83,6 +112,9 @@ export function describeLayout(): string {
   return (
     `${FACTS_PREFIX}<topic>.md for facts, `
     + `${DECISIONS_PREFIX}<year>.md for decisions, `
+    + `${MISJUDGEMENTS_PREFIX}<entry>.md for things an agent got wrong, `
+    + `${FUTURE_PREFIX}{todos,proposals,ideas}/ for work and thinking not yet `
+    + `resolved, ${PAST_PREFIX} for what resolved, `
     + `${CAPTURE_RULES_PREFIX}<rule>.md for capture rules`
   );
 }
