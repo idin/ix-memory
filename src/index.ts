@@ -11,6 +11,11 @@ import {
   readMemory,
   type MemoryRepoConfig,
 } from "./memory_repo";
+import {
+  comparisonPath,
+  looksTrivial,
+  renderComparison,
+} from "./comparisons";
 import { applyDepth, describeDeep, summariseDeep } from "./deep_memory";
 import { gatherDigestMaterial } from "./digest";
 import { applyRevert, planRevert, revertOperation } from "./memory_revert";
@@ -565,6 +570,105 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   }
 
   private registerDerivedTools() {
+    this.registerTool(
+      "save_comparison",
+      {
+        description:
+          "Record a comparison of any number of things — products, "
+          + "restaurants, services, destinations — with its conclusion, so it "
+          + "is not re-derived from nothing next time.\n\n"
+          + "Rejected options and the reason each was rejected are required. "
+          + "That is the expensive part of comparing things and the part that "
+          + "always goes missing: without it the next comparison rules the "
+          + "same options out for the same unrecorded reasons.\n\n"
+          + "Records what was concluded, not just what was chosen. Figures "
+          + "move; reasoning does not.",
+        inputSchema: {
+          subject: z
+            .string()
+            .describe('What was compared, e.g. "air purifiers under $400".'),
+          criteria: z
+            .array(z.string())
+            .describe("What mattered, in the order it mattered."),
+          options: z
+            .array(
+              z.object({
+                name: z.string(),
+                attributes: z
+                  .record(z.string(), z.string())
+                  .optional()
+                  .describe("Whatever was compared on: price, rating, size."),
+                rejected_because: z
+                  .string()
+                  .optional()
+                  .describe(
+                    "Why this one lost. Required for every option except the "
+                    + "chosen one.",
+                  ),
+              }),
+            )
+            .describe("Every option considered, including the ones ruled out."),
+          chosen: z
+            .string()
+            .nullable()
+            .describe("The option chosen, or null if none was."),
+          conclusion: z
+            .string()
+            .describe(
+              "The reasoning, in a sentence or two. In a year this carries "
+              + "the decision, since the numbers will have moved.",
+            ),
+          would_change_if: z
+            .string()
+            .optional()
+            .describe(
+              "What would overturn this. Often outlasts the conclusion.",
+            ),
+        },
+      },
+      async ({
+        subject,
+        criteria,
+        options,
+        chosen,
+        conclusion,
+        would_change_if,
+      }) => {
+        const comparison = {
+          subject,
+          criteria,
+          options,
+          chosen,
+          conclusion,
+          would_change_if,
+        };
+        const now = Date.now();
+        const path = comparisonPath(subject, now);
+
+        const result = await createMemoryFile(
+          this.repoConfig(),
+          path,
+          renderComparison(comparison, now),
+          `feat: compare ${subject}`,
+        );
+
+        // Surfaced, not refused. A tool that declined to save would be
+        // overruling the person who asked it to.
+        const concern = looksTrivial(comparison);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                `Saved to ${result.path} (commit ${result.commitSha.slice(0, 7)}).`
+                + (concern ? `\n\n${concern}` : ""),
+            },
+          ],
+        };
+      },
+    );
+
     this.registerTool(
       "survey_for_improvements",
       {
