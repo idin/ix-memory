@@ -11,6 +11,7 @@ import {
   readMemory,
   type MemoryRepoConfig,
 } from "./memory_repo";
+import { applyDepth, describeDeep, summariseDeep } from "./deep_memory";
 import { gatherDigestMaterial } from "./digest";
 import { applyRevert, planRevert, revertOperation } from "./memory_revert";
 import {
@@ -196,19 +197,47 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
       "list_memory_files",
       {
         description:
-          "List every stored file with its size in bytes. Call this before " +
-          "creating, moving, or deleting anything, so paths are chosen against " +
-          "what actually exists rather than guessed.",
-        inputSchema: {},
+          "List stored files with their sizes. Call this before creating, "
+          + "moving, or deleting anything, so paths are chosen against what "
+          + "actually exists rather than guessed.\n\n"
+          + "Resolved work and acted-on correspondence are left out by "
+          + "default and counted at the end — they are readable by path at any "
+          + "time, and rarely what a question is answered from. Pass "
+          + "include_resolved to see everything.",
+        inputSchema: {
+          include_resolved: z
+            .boolean()
+            .optional()
+            .describe(
+              "Include resolved work and archived messages. Defaults to false.",
+            ),
+        },
       },
-      async () => {
+      async ({ include_resolved }) => {
         const files = await listMemoryFiles(this.repoConfig());
-        const lines = files.map((file) => `${file.path} (${file.bytes} bytes)`);
+        const allPaths = files.map((file) => file.path);
+        const shown = applyDepth(allPaths, {
+          includeDeep: include_resolved ?? false,
+        });
+
+        const lines = files
+          .filter((file) => shown.includes(file.path))
+          .map((file) => `${file.path} (${file.bytes} bytes)`);
+
+        // Say what was held back rather than silently showing less. An agent
+        // that does not know the rest exists will answer confidently from a
+        // store it could not see all of.
+        const held = include_resolved
+          ? null
+          : describeDeep(summariseDeep(allPaths));
+
         return {
           content: [
             {
               type: "text",
-              text: lines.length > 0 ? lines.join("\n") : "Nothing stored yet.",
+              text:
+                (lines.length > 0 ? lines.join("\n") : "Nothing stored yet.")
+                + (held ?? ""),
             },
           ],
         };
