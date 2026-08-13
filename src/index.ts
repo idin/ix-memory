@@ -41,7 +41,51 @@ import {
   reportingFailures,
   type FailureSink,
 } from "./tool_errors";
+import { reminderFor, withReminder } from "./tool_reminders";
 import type { Env, UserProps } from "./types";
+
+/**
+ * Attach the rule governing this call to the response, when there is one.
+ *
+ * Applied in one place rather than in each handler, so a tool cannot be added
+ * without it. A handler that had to remember to call this would eventually be
+ * written by someone who did not, and the omission would be invisible.
+ *
+ * A result shaped in a way this does not recognise is returned untouched. A
+ * reminder is worth less than the result it would corrupt.
+ *
+ * @param tool - The tool that ran.
+ * @param args - What it was called with.
+ * @param result - What it returned.
+ * @returns The result, with the rule appended to its first text block.
+ */
+function attachReminder(
+  tool: string,
+  args: unknown,
+  result: unknown,
+): unknown {
+  const reminder = reminderFor(tool, (args ?? {}) as Record<string, unknown>);
+  if (!reminder || typeof result !== "object" || result === null) {
+    return result;
+  }
+
+  const content = (result as { content?: unknown }).content;
+  if (!Array.isArray(content) || content.length === 0) {
+    return result;
+  }
+  const first = content[0] as { type?: string; text?: string };
+  if (first?.type !== "text" || typeof first.text !== "string") {
+    return result;
+  }
+
+  return {
+    ...result,
+    content: [
+      { ...first, text: withReminder(first.text, reminder) },
+      ...content.slice(1),
+    ],
+  };
+}
 
 export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   // `name` identifies the server; `title` is what a person reads. The spec
@@ -108,7 +152,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
           args,
           login: this.props?.login ?? null,
           sink: this.failureSink,
-          run: () => handler(args),
+          run: async () => attachReminder(name, args, await handler(args)),
         })) as unknown as Parameters<McpServer["registerTool"]>[2],
     );
   }
