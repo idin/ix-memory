@@ -11,7 +11,12 @@ import {
   readMemory,
   type MemoryRepoConfig,
 } from "./memory_repo";
+import { gatherDigestMaterial } from "./digest";
 import { applyRevert, planRevert, revertOperation } from "./memory_revert";
+import {
+  describeMisjudgementState,
+  summariseMisjudgements,
+} from "./misjudgements";
 import {
   createMemoryFile,
   deleteMemoryFile,
@@ -242,11 +247,24 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
           content,
           commit_message,
         );
+        // Recording a misjudgement is the one moment the state of the log is
+        // certainly relevant, and the only moment it is certainly reached.
+        // Reporting the count on a read tool instead would mean an agent that
+        // only ever writes never learns the log is filling up.
+        const note =
+          topic === "misjudgement"
+            ? describeMisjudgementState(
+                await summariseMisjudgements(this.repoConfig()),
+              )
+            : null;
+
         return {
           content: [
             {
               type: "text",
-              text: `Created ${result.path} (commit ${result.commitSha.slice(0, 7)}).`,
+              text:
+                `Created ${result.path} (commit ${result.commitSha.slice(0, 7)}).`
+                + (note ? `\n\n${note}` : ""),
             },
           ],
         };
@@ -468,6 +486,51 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   }
 
   private registerDerivedTools() {
+    this.registerTool(
+      "gather_digest_material",
+      {
+        description:
+          "Collect the undigested misjudgements so a digest can be PROPOSED. "
+          + "Call this only when the user asks for a digest — it is theirs to "
+          + "run, not yours to start. You may suggest running one. "
+          + "Returns the entries and the rules a digest must follow. Nothing "
+          + "you produce from it takes effect: you propose, the user decides, "
+          + "and an agent that digested its own errors and adopted its own "
+          + "conclusions would be authoring the rules that constrain it.",
+        inputSchema: {},
+      },
+      async () => {
+        const material = await gatherDigestMaterial(this.repoConfig());
+        if (material.entries.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  "Nothing undigested. Every entry has been through a digest, "
+                  + "including the ones that produced no rule.",
+              },
+            ],
+          };
+        }
+
+        const described = material.entries
+          .map((entry) => `--- ${entry.path} ---\n${entry.text}`)
+          .join("\n\n");
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                `${material.instructions}\n\n`
+                + `## ${material.entries.length} undigested entries\n\n`
+                + described,
+            },
+          ],
+        };
+      },
+    );
+
     this.registerTool(
       "describe_age",
       {
