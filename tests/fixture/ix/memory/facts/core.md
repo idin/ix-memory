@@ -1,6 +1,6 @@
 # Core facts
 
-Invented. See [instructions.md](../instructions.md).
+Invented. See [the instructions](../instructions/).
 
 - Name: Wren Halloway.
 - Lives in Wellington. Previously lived in Dunedin.

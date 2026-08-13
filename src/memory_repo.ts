@@ -1,7 +1,7 @@
 import { Octokit } from "octokit";
 
 import {
-  INSTRUCTIONS_PATH,
+  INSTRUCTIONS_PREFIX,
   NAMESPACE,
   assertWellFormed,
   describeLayout,
@@ -31,15 +31,19 @@ export function assertReadable(path: string): void {
 }
 
 /**
- * Writable is the same set, minus the instructions file. That one exists so
- * the assistant can read the rules it is meant to follow; letting it rewrite
- * those rules would defeat the point.
+ * Writable is the same set, minus the instructions. Those exist so the
+ * assistant can read the rules it is meant to follow; letting it rewrite those
+ * rules would defeat the point.
+ *
+ * The check is on the prefix, not on one filename. The instructions are a
+ * folder, and a guard that named a single file would leave every rule in it
+ * writable.
  */
 export function assertAppendable(path: string): void {
   assertWellFormed(path);
-  if (path === INSTRUCTIONS_PATH) {
+  if (path.startsWith(INSTRUCTIONS_PREFIX)) {
     throw new Error(
-      `${path} holds the rules this server follows and is read-only to it. `
+      `${path} is one of the rules this server follows and is read-only to it. `
         + "Edit it yourself if the rules should change.",
     );
   }
@@ -57,7 +61,7 @@ export function describeReadablePaths(): string {
 
 export function describeAppendablePaths(): string {
   return (
-    `anything under ${NAMESPACE} except ${INSTRUCTIONS_PATH} — `
+    `anything under ${NAMESPACE} except ${INSTRUCTIONS_PREFIX} — `
     + describeLayout()
   );
 }

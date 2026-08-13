@@ -2,7 +2,7 @@ import { Octokit } from "octokit";
 
 import {
   ALLOWED_EXTENSIONS,
-  INSTRUCTIONS_PATH,
+  INSTRUCTIONS_PREFIX,
   NAMESPACE,
   assertWellFormed,
   isWithinNamespace,
@@ -28,7 +28,7 @@ export function assertManagedPath(path: string): void {
       `Structural changes are limited to ${NAMESPACE} — got: ${path}`,
     );
   }
-  if (path === INSTRUCTIONS_PATH) {
+  if (path.startsWith(INSTRUCTIONS_PREFIX)) {
     throw new Error(
       `${path} holds the rules this server follows and must not be moved or `
         + "deleted by it.",

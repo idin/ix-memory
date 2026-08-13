@@ -25,11 +25,26 @@ export const ARCHIVE_PREFIX = `${MESSAGES_PREFIX}archive/`;
 /** Facts about the user. The part that is actually "memory". */
 export const FACTS_PREFIX = `${NAMESPACE}facts/`;
 
-/** Mutable rules the assistant has learned about what to capture. */
-export const CAPTURE_RULES_PATH = `${NAMESPACE}capture_rules.md`;
+/**
+ * Mutable rules the assistant has learned about what to capture, one file per
+ * rule. A folder rather than a file since 2026-08-13: rules are organised, not
+ * accumulated in one growing document.
+ */
+export const CAPTURE_RULES_PREFIX = `${NAMESPACE}capture_rules/`;
 
-/** Readable so the assistant can follow the rules; never writable by it. */
-export const INSTRUCTIONS_PATH = `${NAMESPACE}instructions.md`;
+/**
+ * Readable so the assistant can follow the rules; never writable by it.
+ *
+ * A prefix rather than a single path, and the distinction is the whole point.
+ * This was one file guarded by an equality check. Splitting it into a folder
+ * without widening the guard would have left every rule file writable — the
+ * protection would have been removed by the act of tidying, silently, while
+ * the rule text saying it must not be still sat inside the folder.
+ *
+ * Anything under this prefix is readable and never writable, whatever it is
+ * called and however deeply it nests.
+ */
+export const INSTRUCTIONS_PREFIX = `${NAMESPACE}instructions/`;
 
 /** Decision log filenames are per-year: `decisions/2026.md`. */
 export const DECISION_LOG_PATTERN = new RegExp(
@@ -68,6 +83,6 @@ export function describeLayout(): string {
   return (
     `${FACTS_PREFIX}<topic>.md for facts, `
     + `${DECISIONS_PREFIX}<year>.md for decisions, `
-    + `${CAPTURE_RULES_PATH} for capture rules`
+    + `${CAPTURE_RULES_PREFIX}<rule>.md for capture rules`
   );
 }

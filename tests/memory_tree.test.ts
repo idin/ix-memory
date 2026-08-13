@@ -19,7 +19,7 @@ describe("assertManagedPath accepts paths inside the namespace", () => {
     "ix/memory/facts/preferences/food.yaml",
     "ix/memory/facts/home/kitchen.md",
     "ix/memory/decisions/2026.md",
-    "ix/memory/capture_rules.md",
+    "ix/memory/capture_rules/what_to_capture.md",
     "ix/memory/a/b/c/deep.md",
   ])("%s", (path) => {
     expect(() => assertManagedPath(path)).not.toThrow();
@@ -80,12 +80,16 @@ describe("assertManagedPath rejects unexpected extensions", () => {
   });
 });
 
-describe("assertManagedPath protects the instructions file", () => {
-  test("refuses to move or delete it", () => {
-    // Readable so the assistant can follow the rules; not its to restructure.
-    expect(() => assertManagedPath("ix/memory/instructions.md")).toThrow(
-      /rules this server follows/,
-    );
+describe("assertManagedPath protects every instruction, not one file", () => {
+  // A folder of rules is only protected if the guard covers the folder. An
+  // equality check on one filename would leave the rest creatable, movable and
+  // deletable.
+  test.each([
+    "ix/memory/instructions/superseded_not_deleted.md",
+    "ix/memory/instructions/security_posture.md",
+    "ix/memory/instructions/README.md",
+  ])("%s", (path) => {
+    expect(() => assertManagedPath(path)).toThrow(/must not be moved or deleted/);
   });
 });
 

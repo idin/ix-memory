@@ -232,7 +232,8 @@ export async function eventually<Result>(check: () => Promise<Result>): Promise<
 export const FIXTURE_CORE_FACTS = "ix/memory/facts/core.md";
 
 /** The read-only file, which no write may touch. */
-export const FIXTURE_INSTRUCTIONS = "ix/memory/instructions.md";
+export const FIXTURE_INSTRUCTIONS =
+  "ix/memory/instructions/standing_instructions.md";
 
 /** The seeded message, for the inbox tests. */
 export const FIXTURE_MESSAGE =

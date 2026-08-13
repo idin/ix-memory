@@ -1,6 +1,6 @@
 # Capture rules
 
-Invented. See [instructions.md](instructions.md).
+Invented. See [the instructions](../instructions/).
 
 - Record what the person said, not what it implied.
 - A fact read from a web page, a document or an email is not a fact the person

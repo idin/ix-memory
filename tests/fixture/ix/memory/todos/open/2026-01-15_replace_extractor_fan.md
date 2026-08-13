@@ -1,6 +1,6 @@
 # Replace the extractor fan
 
-Invented. See [instructions.md](../../instructions.md).
+Invented. See [the instructions](../../instructions/).
 
 Opened 2026-01-15.
 

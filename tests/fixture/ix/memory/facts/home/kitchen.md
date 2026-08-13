@@ -1,6 +1,6 @@
 # Kitchen
 
-Invented. See [instructions.md](../../instructions.md).
+Invented. See [the instructions](../../instructions/).
 
 This file exists in a subfolder because subjects may contain a slash, and the
 path derivation turns that into a directory. A fixture without one would not

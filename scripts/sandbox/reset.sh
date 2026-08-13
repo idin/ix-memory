@@ -56,8 +56,8 @@ git config user.name "ix-memory sandbox"
 # Commit one: the instructions and the rules. Dated well before the rest, so a
 # revert target exists that predates every fact in the repository.
 mkdir -p ix/memory
-cp "$fixture_directory/ix/memory/instructions.md" ix/memory/
-cp "$fixture_directory/ix/memory/capture_rules.md" ix/memory/
+cp -R "$fixture_directory/ix/memory/instructions" ix/memory/
+cp -R "$fixture_directory/ix/memory/capture_rules" ix/memory/
 git add -A
 GIT_AUTHOR_DATE="2026-01-05T10:00:00Z" GIT_COMMITTER_DATE="2026-01-05T10:00:00Z" \
 	git commit --quiet -m "chore: standing instructions and capture rules"

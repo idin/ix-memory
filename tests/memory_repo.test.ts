@@ -19,8 +19,8 @@ describe("assertReadable accepts paths inside the namespace", () => {
     "ix/memory/facts/core.md",
     "ix/memory/facts/preferences/food.yaml",
     "ix/memory/decisions/2026.md",
-    "ix/memory/capture_rules.md",
-    "ix/memory/instructions.md",
+    "ix/memory/capture_rules/what_to_capture.md",
+    "ix/memory/instructions/superseded_not_deleted.md",
     "ix/memory/messages/inbox/ada/note.md",
   ])("%s", (path) => {
     expect(() => assertReadable(path)).not.toThrow();
@@ -47,18 +47,25 @@ describe("assertAppendable accepts the same namespace", () => {
     "ix/memory/facts/core.md",
     "ix/memory/facts/preferences/food.yaml",
     "ix/memory/decisions/2026.md",
-    "ix/memory/capture_rules.md",
+    "ix/memory/capture_rules/what_to_capture.md",
   ])("%s", (path) => {
     expect(() => assertAppendable(path)).not.toThrow();
   });
 });
 
-describe("assertAppendable protects the instructions file", () => {
-  test("readable but not writable", () => {
-    expect(() => assertReadable("ix/memory/instructions.md")).not.toThrow();
-    expect(() => assertAppendable("ix/memory/instructions.md")).toThrow(
-      /read-only/,
-    );
+describe("assertAppendable protects every instruction, not one file", () => {
+  // The instructions were a single file guarded by an equality check. Splitting
+  // them into a folder without widening the guard would have left every rule
+  // writable — the protection removed by the act of tidying.
+  test.each([
+    "ix/memory/instructions/superseded_not_deleted.md",
+    "ix/memory/instructions/never_save_inferences.md",
+    "ix/memory/instructions/security_posture.md",
+    "ix/memory/instructions/README.md",
+    "ix/memory/instructions/nested/deeper/invented.md",
+  ])("readable but not writable: %s", (path) => {
+    expect(() => assertReadable(path)).not.toThrow();
+    expect(() => assertAppendable(path)).toThrow(/read-only/);
   });
 });
 
@@ -81,7 +88,7 @@ describe("path descriptions", () => {
   });
 
   test("appendable description excludes the instructions file", () => {
-    expect(describeAppendablePaths()).toContain("instructions.md");
+    expect(describeAppendablePaths()).toContain("instructions/");
     expect(describeAppendablePaths()).toContain("except");
   });
 });
