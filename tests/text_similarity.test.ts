@@ -174,4 +174,51 @@ describe("bestTokenAlignment", () => {
     expect(bestTokenAlignment("", "anything")).toBe(0);
     expect(bestTokenAlignment("anything", "")).toBe(0);
   });
+
+  test("tokens under four characters are not matched fuzzily", () => {
+    // Jaro-Winkler is unreliable that short: one agreement moves the score a
+    // long way and the prefix bonus covers most of the string. Found on the
+    // real store — "Mid-40s" tokenizes to "mid" and "40s" and scored 0.956
+    // against a message about workbenches and brass lamps, higher than
+    // "poddle" scored against the "poodle" it meant. No threshold separates
+    // those, so the short tokens are excluded rather than thresholded.
+    expect(bestTokenAlignment("mid", "a message about workbenches")).toBe(0);
+    expect(bestTokenAlignment("Mid-40s", "same brass lamp workbench")).toBe(0);
+  });
+
+  test("but a four-character token still matches", () => {
+    expect(bestTokenAlignment("poodle", "a toy poodle")).toBe(1);
+    expect(bestTokenAlignment("frodo", "named Frodo")).toBe(1);
+  });
+
+  test("a query of only short tokens scores nothing rather than noise", () => {
+    // Such a query is still matched exactly and by substring, which is the
+    // only way a three-letter token means anything.
+    expect(bestTokenAlignment("a to it", "any long chunk of text at all")).toBe(
+      0,
+    );
+  });
+});
+
+describe("noise and genuine near-matches separate cleanly", () => {
+  // The property the fuzzy floor depends on. Before tokenSetRatio was dropped
+  // and short tokens excluded, junk scored 0.956 and a real typo 0.911 — the
+  // ranges overlapped, so no floor could tell them apart.
+  const FIELD =
+    "Idin has a toy poodle named Frodo. He owns three televisions.";
+
+  test.each([
+    ["poddle", 0.8],
+    ["televisoin", 0.8],
+    ["poodel", 0.8],
+  ])("the genuine typo %s scores above %f", (query, floor) => {
+    expect(bestTokenAlignment(query, FIELD)).toBeGreaterThan(floor);
+  });
+
+  test.each([["zzzqqq"], ["xylophone"], ["mortgage"]])(
+    "the unrelated query %s scores below the floor",
+    (query) => {
+      expect(bestTokenAlignment(query, FIELD)).toBeLessThan(0.72);
+    },
+  );
 });

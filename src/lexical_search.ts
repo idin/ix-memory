@@ -14,11 +14,7 @@
  */
 
 import { chunkSearchText, type MemoryChunk } from "./chunking";
-import {
-  bestTokenAlignment,
-  tokenSetRatio,
-  tokenSortRatio,
-} from "./text_similarity";
+import { bestTokenAlignment } from "./text_similarity";
 
 /**
  * The fuzzy score below which a hit is noise rather than a weak match.
@@ -86,14 +82,22 @@ export function scoreLexically(query: string, field: string): LexicalScores {
   const endsWith = normalisedField.trimEnd().endsWith(normalisedQuery) ? 1 : 0;
   const contains = normalisedField.includes(normalisedQuery) ? 1 : 0;
 
-  // Three fuzzy views, kept as the strongest rather than averaged: they
-  // disagree by design, and a query that only one of them recognises is still
-  // a match. Averaging would let two indifferent scores bury one good one.
-  const fuzzy = Math.max(
-    bestTokenAlignment(query, field),
-    tokenSortRatio(query, field),
-    tokenSetRatio(query, field),
-  );
+  // Token alignment only. tokenSetRatio is deliberately absent: it returns 1
+  // whenever the query's tokens are a subset of the field's, which is
+  // documented behaviour and useless here, because a long chunk contains
+  // almost any short query's tokens somewhere.
+  //
+  // Measured against the real store, including it scored an unrelated archived
+  // message 0.956 for "Mid-40s" while a genuine typo — "poddle" for "poodle" —
+  // scored 0.911. The ranges overlapped, so no threshold could separate a real
+  // near-match from noise.
+  //
+  // tokenSortRatio is absent for a milder version of the same problem: it
+  // compares whole sorted strings, so a short query against a long chunk
+  // scores low regardless of whether the query appears. bestTokenAlignment
+  // gives both properties that were wanted — word order does not matter, and
+  // within each word the first letters count for more.
+  const fuzzy = bestTokenAlignment(query, field);
 
   return {
     exact,

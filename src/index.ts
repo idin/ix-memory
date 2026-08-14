@@ -52,6 +52,13 @@ import {
   noOpSearchIndexStore,
   type SearchIndexStore,
 } from "./search_index";
+import type { Embedder } from "./embeddings";
+import {
+  DEFAULT_INCLUDE_DEEP,
+  DEFAULT_SEARCH_LIMIT,
+  searchMemory,
+} from "./search_memory";
+import { describeSearchResults } from "./search_results";
 import { readWholeStore } from "./store_read";
 import {
   describeSuggestionMaterial,
@@ -200,6 +207,86 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
     this.registerRevertTool();
     this.registerMessageTools();
     this.registerDerivedTools();
+    this.registerSearchTool();
+  }
+
+  /**
+   * How this server embeds text, or null when it cannot.
+   *
+   * Overridable so a deployment with a Workers AI binding can supply one. The
+   * default is null, which leaves search lexical — and the tool says so,
+   * rather than returning a partial answer as though it were whole.
+   */
+  protected embedder(): Embedder | null {
+    return null;
+  }
+
+  private registerSearchTool() {
+    this.registerTool(
+      "search_memory",
+      {
+        description:
+          "Search the memory store by meaning and by wording at once. Use "
+          + "this instead of guessing which file holds something, or reading "
+          + "several files to find out whether a fact was recorded. Returns "
+          + "the matching passages with their file, heading and line numbers, "
+          + "and says which method matched each one. Superseded values are "
+          + "excluded from matching and labelled where they appear.",
+        inputSchema: {
+          query: z
+            .string()
+            .min(1)
+            .describe(
+              "What to look for. Plain words work; the search matches "
+                + "meaning as well as spelling, so 'canine' finds a dog.",
+            ),
+          limit: z
+            .number()
+            .int()
+            .min(1)
+            .max(25)
+            .optional()
+            .describe(
+              `How many results to return. Defaults to ${DEFAULT_SEARCH_LIMIT}.`,
+            ),
+          include_resolved: z
+            .boolean()
+            .optional()
+            .describe(
+              "Include finished work and archived messages, which are left "
+                + "out by default. Defaults to false.",
+            ),
+        },
+      },
+      async ({ query, limit, include_resolved }) => {
+        const outcome = await searchMemory(
+          this.repoConfig(),
+          this.searchIndex,
+          this.embedder(),
+          {
+            query,
+            limit: limit ?? DEFAULT_SEARCH_LIMIT,
+            includeDeep: include_resolved ?? DEFAULT_INCLUDE_DEEP,
+          },
+        );
+
+        const described = describeSearchResults(outcome.results, {
+          query,
+          semanticAvailable: outcome.semanticAvailable,
+          searched: outcome.searched,
+          includeDeep: include_resolved ?? DEFAULT_INCLUDE_DEEP,
+        });
+
+        // A full rebuild is worth mentioning: it means this search paid for
+        // indexing the whole store, and the next one will not.
+        const note =
+          outcome.indexMode === "full" && outcome.indexReason
+            ? `\n\n(${outcome.indexReason})`
+            : "";
+
+        return { content: [{ type: "text", text: `${described}${note}` }] };
+      },
+    );
   }
 
   private registerReadTools() {

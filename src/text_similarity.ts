@@ -46,6 +46,23 @@ const JARO_WINKLER_MAXIMUM_PREFIX = 4;
 const JARO_WINKLER_PREFIX_SCALE = 0.1;
 
 /**
+ * The shortest token worth matching fuzzily.
+ *
+ * Jaro-Winkler is unreliable below this. With three characters a single
+ * agreement moves the score a long way, and the prefix bonus applies to most
+ * of the string, so two unrelated short tokens routinely reach the mid-0.5s
+ * and can climb higher against a large field.
+ *
+ * Measured on the real store: "Mid-40s" tokenizes to "mid" and "40s", and
+ * scored 0.956 against an archived message about workbenches and brass lamps
+ * — higher than "poddle" scored against the genuine "poodle" it meant. No
+ * threshold can separate those, so the short tokens are excluded from fuzzy
+ * matching instead. They are still matched exactly, which is the only way a
+ * three-letter token means anything.
+ */
+const MINIMUM_FUZZY_TOKEN_LENGTH = 4;
+
+/**
  * Jaro similarity.
  *
  * Two characters match if they are equal and no further apart than half the
@@ -240,7 +257,9 @@ export function tokenSetRatio(query: string, field: string): number {
  * @returns Similarity in [0, 1].
  */
 export function bestTokenAlignment(query: string, field: string): number {
-  const queryTokens = tokenize(query);
+  const queryTokens = tokenize(query).filter(
+    (token) => token.length >= MINIMUM_FUZZY_TOKEN_LENGTH,
+  );
   const fieldTokens = tokenize(field);
   if (queryTokens.length === 0 || fieldTokens.length === 0) {
     return 0;
