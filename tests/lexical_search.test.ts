@@ -6,11 +6,7 @@ import {
   scoreLexically,
   searchLexically,
 } from "../src/lexical_search";
-import type { StoreFile } from "../src/store_checks";
-
-function file(path: string, text: string): StoreFile {
-  return { path, text, bytes: text.length };
-}
+import { chunk, storeFile as file } from "./chunk_fixture";
 
 const FRODO = `# Frodo
 
@@ -106,25 +102,8 @@ describe("every method is always scored", () => {
     expect(scores.starts_with).toBe(1);
     expect(scores.contains).toBe(1);
     expect(
-      searchLexically(
-        [
-          {
-            path: "ix/memory/facts/x.md",
-            ordinal: 0,
-            headingPath: [],
-            filePreamble: "",
-            text: "poodle",
-            superseded: [],
-            containsSuperseded: false,
-            isMessage: false,
-            isDeep: false,
-            startLine: 1,
-            endLine: 1,
-          },
-        ],
-        "poodle",
-        OPTIONS,
-      )[0].bestMethod,
+      searchLexically([chunk({ text: "poodle" })], "poodle", OPTIONS)[0]
+        .bestMethod,
     ).toBe("exact");
   });
 });

@@ -86,6 +86,21 @@ const MINIMUM_MEANINGFUL_CHUNK_CHARACTERS = 24;
 /** How much text overlaps when a chunk has to be split by force. */
 const HARD_SPLIT_OVERLAP_CHARACTERS = 120;
 
+/**
+ * Openings that show a chunk depends on the one before it.
+ *
+ * "It went from Scotia to TD Bank" is meaningless alone: the subject is in the
+ * previous chunk. Detecting this matters because embedding similarity does
+ * not — that pair is about one subject while sharing almost no vocabulary, so
+ * their vectors may sit far apart, and a similarity threshold would miss
+ * exactly the case that needs catching while linking unrelated bullets that
+ * happen to share dates and dollar amounts.
+ *
+ * A dangling reference is a textual fact, so it is detected textually.
+ */
+const DANGLING_REFERENCE_PATTERN =
+  /^[-*\s]*(it|this|that|these|those|they|them|both|either|neither|such|the (above|former|latter|same))\b/i;
+
 /** The blank lines joining heading path, preamble and body in search text. */
 const PREAMBLE_JOIN_TOKENS = 2;
 
@@ -114,6 +129,15 @@ export type MemoryChunk = {
   superseded: string[];
   /** True when stripping would have gutted the text, so nothing was removed. */
   containsSuperseded: boolean;
+  /**
+   * True when this chunk opens with a reference to something before it.
+   *
+   * Retrieval uses this to pull in the preceding sibling, so a hit reading
+   * "It went from Scotia to TD Bank" arrives with the sentence naming what
+   * "it" is. Persisted because it is cheap to compute once and awkward to
+   * recompute per query.
+   */
+  dependsOnPrevious: boolean;
   isMessage: boolean;
   isDeep: boolean;
   startLine: number;
@@ -423,14 +447,20 @@ export function chunkFile(file: StoreFile): MemoryChunk[] {
     .map((chunk, index) => {
       const applied = applySupersession(chunk.text);
       const lines = chunk.text.split("\n").length;
+      const body = applied.text.trim();
       return {
         path: file.path,
         ordinal: index,
         headingPath: chunk.headingPath,
         filePreamble: preamble,
-        text: applied.text.trim(),
+        text: body,
         superseded: applied.superseded,
         containsSuperseded: applied.containsSuperseded,
+        // The first chunk of a file has nothing before it to depend on, so a
+        // pronoun there refers to the title or to nothing — either way there
+        // is no sibling to fetch.
+        dependsOnPrevious:
+          index > 0 && DANGLING_REFERENCE_PATTERN.test(body),
         isMessage,
         isDeep: deep,
         startLine: chunk.startLine,
