@@ -45,6 +45,21 @@ const DERIVED_VALUE_PATTERNS = [
   /\bfor\s+the\s+past\s+\d+\s*(years?|months?)\b/i,
 ];
 
+/**
+ * References that name nothing when an entry opens with one.
+ *
+ * Kept in step with `DANGLING_REFERENCE_PATTERN` in `chunking.ts`, which
+ * detects the same thing for a different purpose: that one repairs a retrieved
+ * result by fetching the neighbour, this one reports the entry so it can be
+ * rewritten. The repair costs context on every search; the rewrite is
+ * permanent.
+ *
+ * Leading markdown emphasis is skipped, since "**They compose**" is the same
+ * failure dressed up.
+ */
+const ENTRY_OPENING_REFERENCE =
+  /^[-*\s]*\**(It|This|That|These|Those|They|Them|Both|Either|Neither|The above|The former|The latter|Such)\b/;
+
 export type StoreFinding = {
   /** What kind of problem this is, so like ones can be grouped. */
   kind: string;
@@ -66,6 +81,7 @@ export function checkStore(files: StoreFile[]): StoreFinding[] {
     ...bareBankNames(files),
     ...rejectedAbbreviations(files),
     ...storedDerivedValues(files),
+    ...entriesWithoutASubject(files),
   ];
 }
 
@@ -180,6 +196,50 @@ function storedDerivedValues(files: StoreFile[]): StoreFinding[] {
         break;
       }
     }
+  }
+  return findings;
+}
+
+/**
+ * Bullets and paragraphs that open with a reference to something unnamed.
+ *
+ * An entry beginning "It went from Scotia to TD Bank" only means anything to
+ * a reader who has just read the entry above it, and search retrieves an
+ * entry rather than a file. Such a fact is in the store and cannot be
+ * retrieved, which is indistinguishable from never having recorded it.
+ *
+ * Only the opening is checked. Pronouns inside an entry that has already named
+ * its subject are ordinary prose, and flagging them would bury the real
+ * findings.
+ */
+function entriesWithoutASubject(files: StoreFile[]): StoreFinding[] {
+  const findings: StoreFinding[] = [];
+  for (const file of files) {
+    if (discussesTheRules(file)) {
+      continue;
+    }
+    const lines = file.text.split("\n");
+    lines.forEach((line, index) => {
+      const opener = ENTRY_OPENING_REFERENCE.exec(line);
+      if (!opener) {
+        return;
+      }
+      // Only an entry's first line counts. A continuation line inside a
+      // bullet has its subject a few words earlier, not a chunk away.
+      const previous = lines[index - 1] ?? "";
+      if (previous.trim().length > 0 && !/^[-*]\s/.test(line)) {
+        return;
+      }
+      findings.push({
+        kind: "entry_without_a_subject",
+        path: file.path,
+        detail:
+          `Line ${index + 1} opens with "${opener[1]}", which names nothing. `
+          + "Retrieved on its own — and search retrieves entries, not files — "
+          + "this says nothing and cannot be found by searching for its "
+          + "subject. Name the subject.",
+      });
+    });
   }
   return findings;
 }
