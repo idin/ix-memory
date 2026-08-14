@@ -150,11 +150,19 @@ async function waitForFixture(): Promise<void> {
 
   // Anything a test creates must be gone again, or the next run's "create a
   // file that did not exist" fails against a file that still does.
+  // Every path a test creates belongs here. A leftover from the previous run
+  // makes the next one fail against state it did not create, and the failure
+  // points at the wrong thing entirely.
   const forbidden = [
     "ix/memory/facts/rivers.md",
     "ix/memory/facts/person.md",
     "ix/memory/facts/added_later.md",
     "ix/memory/facts/written_meanwhile.md",
+    "ix/memory/facts/encoding_check.md",
+    "ix/memory/facts/rebuild_check.md",
+    "ix/memory/facts/delete_check.md",
+    "ix/memory/facts/search_check.md",
+    "ix/memory/facts/superseded_check.md",
   ];
 
   while (Date.now() < deadline) {
