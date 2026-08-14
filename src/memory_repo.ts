@@ -1,5 +1,6 @@
 import { Octokit } from "octokit";
 
+import { decodeBase64, encodeBase64 } from "./base64";
 import {
   INSTRUCTIONS_PREFIX,
   NAMESPACE,
@@ -144,17 +145,3 @@ export async function appendMemory(
   };
 }
 
-function decodeBase64(value: string): string {
-  const binary = atob(value.replace(/\n/g, ""));
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
-
-function encodeBase64(value: string): string {
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary);
-}

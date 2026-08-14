@@ -14,56 +14,7 @@
  * calls one, and has no flag that executes what it suggests.
  */
 
-import { Octokit } from "octokit";
-
-import { NAMESPACE } from "./layout";
-import type { MemoryRepoConfig } from "./memory_repo";
 import { checkStore, type StoreFile, type StoreFinding } from "./store_checks";
-
-/**
- * Read every file in the namespace, with its text.
- *
- * The listing tool returns paths and sizes, which is enough to choose what to
- * read but not enough to check anything. The checks need the text.
- *
- * @param config - Where the memory lives.
- * @returns Every file, with its contents.
- */
-export async function readWholeStore(
-  config: MemoryRepoConfig,
-): Promise<StoreFile[]> {
-  const octokit = new Octokit({ auth: config.token });
-  const branch = await octokit.rest.repos.getBranch({
-    owner: config.owner,
-    repo: config.repo,
-    branch: config.branch,
-  });
-  const tree = await octokit.rest.git.getTree({
-    owner: config.owner,
-    repo: config.repo,
-    tree_sha: branch.data.commit.sha,
-    recursive: "true",
-  });
-
-  const paths = (tree.data.tree ?? [])
-    .filter((node) => node.type === "blob" && (node.path ?? "").startsWith(NAMESPACE))
-    .map((node) => ({ path: node.path ?? "", bytes: node.size ?? 0 }));
-
-  const files: StoreFile[] = [];
-  for (const { path, bytes } of paths) {
-    const file = await octokit.rest.repos.getContent({
-      owner: config.owner,
-      repo: config.repo,
-      path,
-      ref: config.branch,
-    });
-    if (Array.isArray(file.data) || file.data.type !== "file") {
-      continue;
-    }
-    files.push({ path, bytes, text: atob(file.data.content.replace(/\n/g, "")) });
-  }
-  return files;
-}
 
 /** Which of the three areas to survey. */
 export type SuggestionArea = "content" | "tools" | "rules";

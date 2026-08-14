@@ -1,5 +1,6 @@
 import { Octokit } from "octokit";
 
+import { decodeBase64, encodeBase64 } from "./base64";
 import {
   ALLOWED_EXTENSIONS,
   INSTRUCTIONS_PREFIX,
@@ -271,19 +272,4 @@ function requireCommitSha(sha: string | undefined, path: string): string {
     throw new Error(`Commit touching ${path} returned no sha.`);
   }
   return sha;
-}
-
-function decodeBase64(value: string): string {
-  const binary = atob(value.replace(/\n/g, ""));
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
-
-function encodeBase64(value: string): string {
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary);
 }

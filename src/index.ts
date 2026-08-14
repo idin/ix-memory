@@ -47,9 +47,9 @@ import {
   reportingFailures,
   type FailureSink,
 } from "./tool_errors";
+import { readWholeStore } from "./store_read";
 import {
   describeSuggestionMaterial,
-  readWholeStore,
   surveyContent,
   surveyRules,
 } from "./suggestions";
