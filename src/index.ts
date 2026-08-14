@@ -122,7 +122,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   server = new McpServer({
     name: "ix-memory",
     title: "Ix Memory",
-    version: "0.2.0",
+    version: "0.2.1",
   });
 
   /**
@@ -1096,3 +1096,10 @@ export {
   unpackVector,
 } from "./search_index";
 export type { MemoryChunk } from "./chunking";
+export type { Embedder, WorkersAi } from "./embeddings";
+export {
+  EMBEDDING_MODEL,
+  EMBEDDING_POOLING,
+  workersAiEmbedder,
+} from "./embeddings";
+export { noOpSearchIndexStore } from "./search_index";
