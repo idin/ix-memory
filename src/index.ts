@@ -47,6 +47,7 @@ import {
   reportingFailures,
   type FailureSink,
 } from "./tool_errors";
+import { noOpUsageSink, type UsageSink } from "./api_usage";
 import { readWholeStore } from "./store_read";
 import {
   describeSuggestionMaterial,
@@ -135,6 +136,15 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
    * anything.
    */
   protected failureSink: FailureSink = consoleFailureSink;
+
+  /**
+   * Where external API usage is written.
+   *
+   * Overridable so a deployment can keep rows and answer "how close is this
+   * to the free allowance". The default discards: most deployments have
+   * nowhere to put it, and metering is not worth failing a search over.
+   */
+  protected usageSink: UsageSink = noOpUsageSink;
 
   /**
    * Register a tool whose failures are recorded rather than thrown.
@@ -967,3 +977,9 @@ export { GitHubHandler } from "./github_handler";
 export type { Env, UserProps } from "./types";
 export type { FailureSink, ToolFailure } from "./tool_errors";
 export type { MemoryRepoConfig } from "./memory_repo";
+export type { ApiUsage, UsageSink } from "./api_usage";
+export {
+  FREE_NEURONS_PER_DAY,
+  describeUsage,
+  estimateUsage,
+} from "./api_usage";
