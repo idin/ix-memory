@@ -48,6 +48,10 @@ import {
   type FailureSink,
 } from "./tool_errors";
 import { noOpUsageSink, type UsageSink } from "./api_usage";
+import {
+  noOpSearchIndexStore,
+  type SearchIndexStore,
+} from "./search_index";
 import { readWholeStore } from "./store_read";
 import {
   describeSuggestionMaterial,
@@ -145,6 +149,16 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
    * nowhere to put it, and metering is not worth failing a search over.
    */
   protected usageSink: UsageSink = noOpUsageSink;
+
+  /**
+   * Where chunks and their vectors are kept between requests.
+   *
+   * Overridable so a deployment can share one build across every session. The
+   * default keeps nothing, which leaves search lexical-only — workable, and
+   * the tool says so rather than returning a short answer as if it were the
+   * whole one.
+   */
+  protected searchIndex: SearchIndexStore = noOpSearchIndexStore;
 
   /**
    * Register a tool whose failures are recorded rather than thrown.
@@ -983,3 +997,15 @@ export {
   describeUsage,
   estimateUsage,
 } from "./api_usage";
+export type {
+  IndexIdentity,
+  IndexedChunk,
+  SearchIndexStore,
+} from "./search_index";
+export {
+  packChunk,
+  packVector,
+  unpackChunkLists,
+  unpackVector,
+} from "./search_index";
+export type { MemoryChunk } from "./chunking";

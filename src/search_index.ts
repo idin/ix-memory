@@ -1,0 +1,152 @@
+/**
+ * Where chunks and their vectors are kept.
+ *
+ * The index is a pure function of the commit: the same commit produces the
+ * same chunks and the same vectors, every time. That fact decides the design.
+ * Rows are keyed by commit sha, so the first session to build at a commit
+ * builds it for every other session, and a session arriving at an
+ * already-built commit does no work at all. Per-session storage would
+ * re-embed the whole store on every connection, computing data a previous
+ * session already computed.
+ *
+ * It also means there is nothing to invalidate. Cache validity is one
+ * comparison — built sha against HEAD — rather than a mechanism.
+ *
+ * This file defines the contract only. The library cannot assume a database
+ * exists, because for most people running it none does. A deployment supplies
+ * one; without it, search still works lexically and says so, which matters
+ * more than it sounds: a silently lexical-only search returns nothing for
+ * "canine" and reads as "not in the store".
+ */
+
+import type { MemoryChunk } from "./chunking";
+
+/** A chunk with its vector, as stored. */
+export type IndexedChunk = {
+  chunk: MemoryChunk;
+  /** Null when the chunk is stored but not yet embedded. */
+  vector: Float32Array | null;
+};
+
+/**
+ * How a build identifies itself.
+ *
+ * The commit alone is not enough. Vectors from two embedding models, or two
+ * pooling modes of one model, are not comparable — Cloudflare's own
+ * documentation says cls and mean embeddings "are not compatible" — and
+ * comparing across them returns a plausible number rather than an error. So
+ * the model and pooling travel with the commit, and a change in any of the
+ * three is a different index.
+ */
+export type IndexIdentity = {
+  commitSha: string;
+  model: string;
+  pooling: string;
+};
+
+/**
+ * Somewhere chunks and vectors are kept.
+ *
+ * Deliberately small, and deliberately not SQL: a deployment might use D1,
+ * Durable Object storage, or something else entirely, and the library should
+ * not care which.
+ */
+export type SearchIndexStore = {
+  /** Read every chunk for an identity, with vectors where they exist. */
+  load(identity: IndexIdentity): Promise<IndexedChunk[]>;
+  /** Replace every chunk for one file. Delete-then-insert, not update. */
+  replaceFile(
+    identity: IndexIdentity,
+    path: string,
+    chunks: IndexedChunk[],
+  ): Promise<void>;
+  /** Remove every chunk for one file. */
+  removeFile(identity: IndexIdentity, path: string): Promise<void>;
+  /** Which commit this identity was last fully built from, if any. */
+  builtCommit(identity: Omit<IndexIdentity, "commitSha">): Promise<string | null>;
+  /** Record that a build finished. Called last, deliberately. */
+  recordBuiltCommit(identity: IndexIdentity): Promise<void>;
+  /** Drop everything for commits other than the one given. */
+  discardOtherCommits(identity: IndexIdentity): Promise<void>;
+};
+
+/**
+ * The store used when a deployment provides none.
+ *
+ * Reads empty and discards writes, so every search is a fresh lexical-only
+ * search. Correct, and slower than it needs to be, which is the right
+ * trade for a library that cannot assume infrastructure.
+ */
+export const noOpSearchIndexStore: SearchIndexStore = {
+  load: async () => [],
+  replaceFile: async () => {},
+  removeFile: async () => {},
+  builtCommit: async () => null,
+  recordBuiltCommit: async () => {},
+  discardOtherCommits: async () => {},
+};
+
+/**
+ * Whether an index store is real.
+ *
+ * Used to tell the caller that semantic search is unavailable, rather than
+ * returning lexical-only results as though they were the whole answer.
+ */
+export function hasPersistentIndex(store: SearchIndexStore): boolean {
+  return store !== noOpSearchIndexStore;
+}
+
+/**
+ * Pack a vector for storage as bytes.
+ *
+ * Stored as raw Float32 rather than JSON: 3,072 bytes against roughly 9,000
+ * for the text form, no parse on the way back, and no precision lost to
+ * decimal rounding.
+ *
+ * @param vector - The embedding.
+ * @returns Its bytes.
+ */
+export function packVector(vector: Float32Array): ArrayBuffer {
+  return vector.buffer.slice(
+    vector.byteOffset,
+    vector.byteOffset + vector.byteLength,
+  ) as ArrayBuffer;
+}
+
+/**
+ * Unpack a stored vector.
+ *
+ * @param bytes - What was stored.
+ * @returns The embedding.
+ */
+export function unpackVector(bytes: ArrayBuffer): Float32Array {
+  return new Float32Array(bytes);
+}
+
+/**
+ * Serialise the parts of a chunk that are not scalars.
+ *
+ * Heading paths and superseded spans are lists, and a store may only accept
+ * scalars. JSON is used rather than a delimiter because a heading can contain
+ * any character, including whichever delimiter looked safe.
+ */
+export function packChunk(chunk: MemoryChunk): {
+  headingPath: string;
+  superseded: string;
+} {
+  return {
+    headingPath: JSON.stringify(chunk.headingPath),
+    superseded: JSON.stringify(chunk.superseded),
+  };
+}
+
+/** Restore a chunk's lists from their stored form. */
+export function unpackChunkLists(row: {
+  headingPath: string;
+  superseded: string;
+}): { headingPath: string[]; superseded: string[] } {
+  return {
+    headingPath: JSON.parse(row.headingPath) as string[],
+    superseded: JSON.parse(row.superseded) as string[],
+  };
+}
