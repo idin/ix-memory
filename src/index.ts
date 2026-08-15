@@ -58,6 +58,14 @@ import {
   DEFAULT_SEARCH_LIMIT,
   searchMemory,
 } from "./search_memory";
+import {
+  applyJudgments,
+  describeJudgments,
+  noOpRelevanceSink,
+  recordCandidates,
+  type CandidateRecord,
+  type RelevanceSink,
+} from "./relevance_labels";
 import { describeSearchResults } from "./search_results";
 import { readWholeStore } from "./store_read";
 import {
@@ -122,7 +130,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   server = new McpServer({
     name: "ix-memory",
     title: "Ix Memory",
-    version: "0.2.2",
+    version: "0.3.0",
   });
 
   /**
@@ -166,6 +174,25 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
    * whole one.
    */
   protected searchIndex: SearchIndexStore = noOpSearchIndexStore;
+
+  /**
+   * Where judgments about search results are written.
+   *
+   * Overridable so a deployment can accumulate them into training data. The
+   * default discards, and a deployment that never supplies one loses nothing
+   * a search depends on.
+   */
+  protected relevanceSink: RelevanceSink = noOpRelevanceSink;
+
+  /**
+   * The candidates from the most recent search, awaiting judgment.
+   *
+   * Held rather than re-derived because judging happens in a second call, and
+   * recomputing the feature vector then would produce different numbers if the
+   * index had moved in between — which would record a judgment against scores
+   * nobody saw.
+   */
+  private lastCandidates: CandidateRecord[] = [];
 
   /**
    * Register a tool whose failures are recorded rather than thrown.
@@ -270,6 +297,20 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
           },
         );
 
+        // Held for a later judgment call rather than recomputed then: the
+        // index may move in between, and recomputing would record a verdict
+        // against scores nobody saw.
+        this.lastCandidates = recordCandidates(
+          query,
+          this.props?.login ?? null,
+          outcome.results.map((result) => ({
+            path: result.chunk.path,
+            ordinal: result.chunk.ordinal,
+            features: result.features,
+          })),
+          Date.now(),
+        );
+
         const described = describeSearchResults(outcome.results, {
           query,
           semanticAvailable: outcome.semanticAvailable,
@@ -285,6 +326,73 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
             : "";
 
         return { content: [{ type: "text", text: `${described}${note}` }] };
+      },
+    );
+
+    this.registerTool(
+      "judge_search_results",
+      {
+        description:
+          "Say which results from the last search actually answered the "
+          + "question and which did not. Call this after reading them, so "
+          + "ranking can be measured and improved against real judgments "
+          + "rather than guesses. Anything left unmentioned is recorded as "
+          + "unjudged, not as a rejection — so there is no need to account "
+          + "for results that were not read.",
+        inputSchema: {
+          relevant: z
+            .array(z.number().int().min(1))
+            .optional()
+            .describe(
+              "Result numbers, as shown in the search output, that answered "
+                + "the question.",
+            ),
+          irrelevant: z
+            .array(z.number().int().min(1))
+            .optional()
+            .describe(
+              "Result numbers that were read and did not answer it. Only "
+                + "include what was actually read — these are as valuable as "
+                + "the relevant ones, since a set of only good matches cannot "
+                + "teach anything to tell them apart.",
+            ),
+        },
+      },
+      async ({ relevant, irrelevant }) => {
+        if (this.lastCandidates.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  "There are no results to judge. Run search_memory first; "
+                  + "judgments apply to the most recent search in this "
+                  + "session.",
+              },
+            ],
+          };
+        }
+
+        const at = (numbers: number[] | undefined) =>
+          (numbers ?? [])
+            .map((number) => this.lastCandidates[number - 1])
+            .filter((record) => record !== undefined)
+            .map((record) => ({
+              path: record.path,
+              ordinal: record.ordinal,
+            }));
+
+        const judged = applyJudgments(
+          this.lastCandidates,
+          at(relevant),
+          at(irrelevant),
+        );
+        await this.relevanceSink(judged);
+        this.lastCandidates = judged;
+
+        return {
+          content: [{ type: "text", text: describeJudgments(judged) }],
+        };
       },
     );
   }
@@ -1103,3 +1211,9 @@ export {
   workersAiEmbedder,
 } from "./embeddings";
 export { noOpSearchIndexStore } from "./search_index";
+export type {
+  CandidateRecord,
+  RelevanceLabel,
+  RelevanceSink,
+} from "./relevance_labels";
+export { noOpRelevanceSink } from "./relevance_labels";
