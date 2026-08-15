@@ -122,7 +122,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   server = new McpServer({
     name: "ix-memory",
     title: "Ix Memory",
-    version: "0.2.1",
+    version: "0.2.2",
   });
 
   /**

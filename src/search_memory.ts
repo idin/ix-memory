@@ -66,6 +66,25 @@ export const CANDIDATE_POOL_SIZE = 20;
 /** Resolved work is left out unless asked for, as everywhere else. */
 export const DEFAULT_INCLUDE_DEEP = false;
 
+/**
+ * How many files to index in one search.
+ *
+ * A Worker may make a bounded number of outbound requests per invocation —
+ * 50 on the free plan, 10,000 on paid — and every service call counts,
+ * including D1 and Workers AI. Indexing one file costs a blob read and a
+ * database write, with embedding calls batched across the group, so a full
+ * build of this store ran to roughly 220 and failed outright.
+ *
+ * Building in bounded batches fits any plan and, more importantly, does not
+ * assume a store size. A fixed ceiling is exceeded by a large enough store
+ * whatever the plan, and the failure is a search that cannot run at all.
+ *
+ * Set low enough to leave room for the searching itself — the head-commit
+ * read, the comparison, the query embedding, and loading what is already
+ * indexed.
+ */
+export const FILES_INDEXED_PER_SEARCH = 12;
+
 export type SearchOptions = {
   query: string;
   limit: number;
@@ -128,48 +147,76 @@ async function currentChunks(
 
   if (plan.mode === "full") {
     const files = await readWholeStore(config);
-    for (const file of files) {
+    // What is already indexed at this commit, so a resumed build picks up
+    // where the previous search stopped rather than starting again.
+    const alreadyIndexed = new Set(
+      (await store.load(identity)).map((entry) => entry.chunk.path),
+    );
+    const remaining = files.filter((file) => !alreadyIndexed.has(file.path));
+    const batch = remaining.slice(0, FILES_INDEXED_PER_SEARCH);
+
+    for (const file of batch) {
       const chunks = chunkFile(file);
       const embedded = embed
         ? await embedChunks(chunks, embed)
         : chunks.map((chunk) => ({ chunk, vector: null }));
       await store.replaceFile(identity, file.path, embedded);
     }
+
+    const stillMissing = remaining.length - batch.length;
+    if (stillMissing > 0) {
+      // Deliberately not recording the commit as built. The sha means "every
+      // file at this commit is indexed", and claiming it early would make
+      // every later search skip the rest — a permanently partial index
+      // reporting itself as complete.
+      return {
+        indexed: await store.load(identity),
+        mode: plan.mode,
+        reason:
+          `Indexed ${files.length - stillMissing} of ${files.length} files so `
+          + `far. A Worker can only make so many calls per request, so the `
+          + `index is built across several searches. Results below cover what `
+          + `is indexed; search again to continue — ${stillMissing} file(s) `
+          + "to go.",
+      };
+    }
+
     // Written after every chunk has landed. A crash before this leaves the
     // previous sha and the next run redoes the work; the opposite order would
     // claim a build that never finished.
     await store.recordBuiltCommit(identity);
     await store.discardOtherCommits(identity);
-    return { indexed: await store.load(identity), mode: plan.mode, reason: plan.reason };
+    return {
+      indexed: await store.load(identity),
+      mode: plan.mode,
+      reason: `Index complete: ${files.length} files.`,
+    };
   }
 
   // Incremental: carry forward what the previous commit had, then apply only
-  // what changed. Copying rather than diffing in place, because rows are keyed
-  // by commit and the previous commit's rows stay readable for any session
-  // still using them.
+  // what changed. Rows are keyed by commit, so the previous commit's rows stay
+  // readable for any session still using them.
+  //
+  // Carrying forward is one bulk copy rather than a write per file. Writing
+  // each file separately would cost a subrequest per unchanged file, which for
+  // a one-file edit means paying nearly the price of a full rebuild to avoid
+  // one.
   if (builtSha) {
-    const previous = await store.load({
-      commitSha: builtSha,
-      model: EMBEDDING_MODEL,
-      pooling: EMBEDDING_POOLING,
-    });
-    const byPath = new Map<string, IndexedChunk[]>();
-    for (const entry of previous) {
-      const existing = byPath.get(entry.chunk.path) ?? [];
-      existing.push(entry);
-      byPath.set(entry.chunk.path, existing);
-    }
     const changedPaths = new Set(plan.changes.map((change) => change.path));
-    for (const [path, chunks] of byPath) {
-      if (!changedPaths.has(path)) {
-        await store.replaceFile(identity, path, chunks);
-      }
-    }
+    await store.carryForward({
+      from: {
+        commitSha: builtSha,
+        model: EMBEDDING_MODEL,
+        pooling: EMBEDDING_POOLING,
+      },
+      to: identity,
+      exceptPaths: [...changedPaths],
+    });
   }
 
   const files = await readWholeStore(config);
   const byPath = new Map(files.map((file) => [file.path, file]));
-  for (const change of plan.changes) {
+  for (const change of plan.changes.slice(0, FILES_INDEXED_PER_SEARCH)) {
     if (change.kind === "delete") {
       await store.removeFile(identity, change.path);
       continue;
@@ -183,6 +230,17 @@ async function currentChunks(
       ? await embedChunks(chunks, embed)
       : chunks.map((chunk) => ({ chunk, vector: null }));
     await store.replaceFile(identity, change.path, embedded);
+  }
+
+  const unprocessed = plan.changes.length - FILES_INDEXED_PER_SEARCH;
+  if (unprocessed > 0) {
+    return {
+      indexed: await store.load(identity),
+      mode: plan.mode,
+      reason:
+        `${unprocessed} changed file(s) still to index. Search again to `
+        + "continue.",
+    };
   }
 
   await store.recordBuiltCommit(identity);

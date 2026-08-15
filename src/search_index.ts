@@ -62,6 +62,20 @@ export type SearchIndexStore = {
   ): Promise<void>;
   /** Remove every chunk for one file. */
   removeFile(identity: IndexIdentity, path: string): Promise<void>;
+  /**
+   * Copy one commit's rows to another, skipping the paths that changed.
+   *
+   * One operation rather than a write per file, because a Worker's outbound
+   * calls are capped per request. Copying file by file would cost a call for
+   * every unchanged file, so editing one file in a large store would pay
+   * nearly the price of a full rebuild to avoid one.
+   */
+  carryForward(options: {
+    from: IndexIdentity;
+    to: IndexIdentity;
+    exceptPaths: string[];
+  }): Promise<void>;
+
   /** Which commit this identity was last fully built from, if any. */
   builtCommit(identity: Omit<IndexIdentity, "commitSha">): Promise<string | null>;
   /** Record that a build finished. Called last, deliberately. */
@@ -81,6 +95,7 @@ export const noOpSearchIndexStore: SearchIndexStore = {
   load: async () => [],
   replaceFile: async () => {},
   removeFile: async () => {},
+  carryForward: async () => {},
   builtCommit: async () => null,
   recordBuiltCommit: async () => {},
   discardOtherCommits: async () => {},

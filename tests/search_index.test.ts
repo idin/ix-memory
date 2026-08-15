@@ -113,6 +113,16 @@ describe("the default store", () => {
     ).resolves.toBeUndefined();
   });
 
+  test("carrying forward is a no-op rather than an error", async () => {
+    await expect(
+      noOpSearchIndexStore.carryForward({
+        from: { commitSha: "old", model: "m", pooling: "mean" },
+        to: { commitSha: "new", model: "m", pooling: "mean" },
+        exceptPaths: ["ix/memory/facts/changed.md"],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   test("is recognisable as absent", () => {
     // So the tool can say semantic search is unavailable rather than
     // returning lexical-only results as though they were the whole answer.
