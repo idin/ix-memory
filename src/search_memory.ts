@@ -47,10 +47,41 @@ import {
 } from "./search_index";
 import { attachSiblings } from "./sibling_chunks";
 import type { ExpandedHit } from "./sibling_chunks";
-import { readWholeStore } from "./store_read";
+import {
+  listStoreTree,
+  readStoreBlobs,
+  readWholeStore,
+  type StoreFileWithSha,
+} from "./store_read";
 
 /** Resolved work is left out unless asked for, as everywhere else. */
 export const DEFAULT_INCLUDE_DEEP = false;
+
+/**
+ * List the store, then fetch text for only a bounded slice of it.
+ *
+ * Listing is one or two requests regardless of store size; fetching text is
+ * what scales per file. Filtering and slicing before fetching is what keeps a
+ * batched rebuild's subrequest count bounded by the batch size rather than by
+ * the size of the store.
+ *
+ * @param config - Where the memory lives.
+ * @param options.exclude - Paths to leave out before slicing, e.g. what a
+ *   resumed build has already indexed.
+ * @param options.limit - How many files this batch may fetch.
+ * @returns The batch's files with text, and how many eligible files remained
+ *   beyond it.
+ */
+async function readBoundedBatch(
+  config: MemoryRepoConfig,
+  options: { exclude: Set<string>; limit: number },
+): Promise<{ batch: StoreFileWithSha[]; totalEligible: number }> {
+  const refs = await listStoreTree(config);
+  const eligible = refs.filter((ref) => !options.exclude.has(ref.path));
+  const batchRefs = eligible.slice(0, options.limit);
+  const batch = await readStoreBlobs(config, batchRefs);
+  return { batch, totalEligible: eligible.length };
+}
 
 export type SearchOptions = {
   query: string;
@@ -114,14 +145,15 @@ async function currentChunks(
   }
 
   if (plan.mode === "full") {
-    const files = await readWholeStore(config);
     // What is already indexed at this commit, so a resumed build picks up
     // where the previous search stopped rather than starting again.
     const alreadyIndexed = new Set(
       (await store.load(identity)).map((entry) => entry.chunk.path),
     );
-    const remaining = files.filter((file) => !alreadyIndexed.has(file.path));
-    const batch = remaining.slice(0, FILES_INDEXED_PER_SEARCH);
+    const { batch, totalEligible } = await readBoundedBatch(config, {
+      exclude: alreadyIndexed,
+      limit: FILES_INDEXED_PER_SEARCH,
+    });
 
     for (const file of batch) {
       const chunks = chunkFile(file);
@@ -131,7 +163,7 @@ async function currentChunks(
       await store.replaceFile(identity, file.path, embedded);
     }
 
-    const stillMissing = remaining.length - batch.length;
+    const stillMissing = totalEligible - batch.length;
     if (stillMissing > 0) {
       // Deliberately not recording the commit as built. The sha means "every
       // file at this commit is indexed", and claiming it early would make
@@ -141,11 +173,11 @@ async function currentChunks(
         indexed: await store.load(identity),
         mode: plan.mode,
         reason:
-          `Indexed ${files.length - stillMissing} of ${files.length} files so `
-          + `far. A Worker can only make so many calls per request, so the `
-          + `index is built across several searches. Results below cover what `
-          + `is indexed; search again to continue — ${stillMissing} file(s) `
-          + "to go.",
+          `Indexed ${alreadyIndexed.size + batch.length} of `
+          + `${alreadyIndexed.size + totalEligible} files so far. A Worker `
+          + `can only make so many calls per request, so the index is built `
+          + `across several searches. Results below cover what is indexed; `
+          + `search again to continue — ${stillMissing} file(s) to go.`,
       };
     }
 
@@ -157,7 +189,8 @@ async function currentChunks(
     return {
       indexed: await store.load(identity),
       mode: plan.mode,
-      reason: `Index complete: ${files.length} files.`,
+      reason:
+        `Index complete: ${alreadyIndexed.size + batch.length} files.`,
     };
   }
 
@@ -182,9 +215,22 @@ async function currentChunks(
     });
   }
 
-  const files = await readWholeStore(config);
-  const byPath = new Map(files.map((file) => [file.path, file]));
-  for (const change of plan.changes.slice(0, FILES_INDEXED_PER_SEARCH)) {
+  // Only the changed files scheduled this round need their text — an
+  // unbounded fetch here would cost a subrequest per changed file regardless
+  // of how many `FILES_INDEXED_PER_SEARCH` allows this call to use.
+  const changesThisRound = plan.changes.slice(0, FILES_INDEXED_PER_SEARCH);
+  const upsertPaths = new Set(
+    changesThisRound
+      .filter((change) => change.kind === "upsert")
+      .map((change) => change.path),
+  );
+  const refs = (await listStoreTree(config)).filter((ref) =>
+    upsertPaths.has(ref.path),
+  );
+  const byPath = new Map(
+    (await readStoreBlobs(config, refs)).map((file) => [file.path, file]),
+  );
+  for (const change of changesThisRound) {
     if (change.kind === "delete") {
       await store.removeFile(identity, change.path);
       continue;

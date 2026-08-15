@@ -38,6 +38,9 @@ export const BLOB_FETCH_CONCURRENCY = 16;
 /** A file, its text, and the content hash that says whether it changed. */
 export type StoreFileWithSha = StoreFile & { sha: string };
 
+/** A file's path and blob sha, without its text — cheap to list in full. */
+export type StoreBlobRef = { path: string; bytes: number; sha: string };
+
 /**
  * Thrown when GitHub truncates the tree listing.
  *
@@ -91,15 +94,21 @@ async function mapWithConcurrency<Item, Result>(
 }
 
 /**
- * Read every file in the namespace, with its text and content hash.
+ * List every file in the namespace, without fetching its text.
+ *
+ * One or two requests regardless of store size — a branch lookup and a
+ * recursive tree listing — so a caller that only needs to know what exists,
+ * or which of it to fetch this round, does not pay a subrequest per file to
+ * find out.
  *
  * @param config - Where the memory lives.
- * @returns Every file in the namespace, sorted by path.
+ * @returns Every file's path, size and blob sha, sorted as the tree returned
+ *   them.
  * @throws TruncatedTreeError - When GitHub returns a partial tree.
  */
-export async function readWholeStore(
+export async function listStoreTree(
   config: MemoryRepoConfig,
-): Promise<StoreFileWithSha[]> {
+): Promise<StoreBlobRef[]> {
   const octokit = new Octokit({ auth: config.token });
   const branch = await octokit.rest.repos.getBranch({
     owner: config.owner,
@@ -117,7 +126,7 @@ export async function readWholeStore(
     throw new TruncatedTreeError();
   }
 
-  const blobs = (tree.data.tree ?? [])
+  return (tree.data.tree ?? [])
     .filter(
       (node) =>
         node.type === "blob" && (node.path ?? "").startsWith(NAMESPACE),
@@ -127,13 +136,32 @@ export async function readWholeStore(
       bytes: node.size ?? 0,
       sha: node.sha ?? "",
     }));
+}
 
-  // The tree already carries every blob's sha, so read blobs by sha rather
-  // than paths by ref. One request per file either way, but this cannot race
-  // a concurrent write: a sha names one immutable object, where a path names
-  // whatever is there when the request lands.
+/**
+ * Fetch the text of a given set of blobs.
+ *
+ * Split from {@link listStoreTree} so a caller that can only afford to
+ * process part of the store this round — full-rebuild batching, in
+ * particular — fetches text for that part alone, rather than for every file
+ * in the namespace regardless of how many it is about to use.
+ *
+ * @param config - Where the memory lives.
+ * @param refs - Which blobs to fetch, as returned by {@link listStoreTree}.
+ * @returns Each ref with its decoded text attached.
+ */
+export async function readStoreBlobs(
+  config: MemoryRepoConfig,
+  refs: StoreBlobRef[],
+): Promise<StoreFileWithSha[]> {
+  const octokit = new Octokit({ auth: config.token });
+
+  // Blobs are read by sha rather than paths by ref. One request per file
+  // either way, but this cannot race a concurrent write: a sha names one
+  // immutable object, where a path names whatever is there when the request
+  // lands.
   return mapWithConcurrency(
-    blobs,
+    refs,
     BLOB_FETCH_CONCURRENCY,
     async ({ path, bytes, sha }) => {
       const blob = await octokit.rest.git.getBlob({
@@ -144,4 +172,22 @@ export async function readWholeStore(
       return { path, bytes, sha, text: decodeBase64(blob.data.content) };
     },
   );
+}
+
+/**
+ * Read every file in the namespace, with its text and content hash.
+ *
+ * Fetches a blob per file, so its cost scales with store size — callers that
+ * can bound how much of the store they need this round should use
+ * {@link listStoreTree} and {@link readStoreBlobs} instead.
+ *
+ * @param config - Where the memory lives.
+ * @returns Every file in the namespace, sorted by path.
+ * @throws TruncatedTreeError - When GitHub returns a partial tree.
+ */
+export async function readWholeStore(
+  config: MemoryRepoConfig,
+): Promise<StoreFileWithSha[]> {
+  const refs = await listStoreTree(config);
+  return readStoreBlobs(config, refs);
 }
