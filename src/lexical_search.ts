@@ -1,15 +1,20 @@
 /**
  * Scoring chunks against a query, without embeddings.
  *
- * Five methods, one pass. The four anchored ones — exact, starts with, ends
- * with, contains — are the same scan with different anchors, so they are not
- * four separate implementations and should not be four separate tools. Fuzzy
- * is the fifth.
+ * Six methods, one pass. Five are anchored — exact, starts with, ends with,
+ * contains, contained by — and are the same scan with different anchors, so
+ * they are not five implementations and should not be five tools. Fuzzy is
+ * the sixth.
  *
- * Every method is scored for every chunk, always. Nothing selects one. That
- * matters twice over: hybrid ranking needs all of them to fuse, and the
- * learning loop needs the full feature vector per candidate, so computing one
- * and discarding the rest would destroy the training data before it is
+ * `contains` and `contained_by` are opposite directions of the same
+ * relationship, and both are needed. A short query finds long chunks by
+ * `contains`; a long query finds short chunks by `contained_by`. Without the
+ * second, asking a full question reaches nothing, because no chunk holds the
+ * whole question.
+ *
+ * Every method is scored for every chunk, always. Nothing selects one, because
+ * the learning loop needs the full feature vector per candidate — computing
+ * one and discarding the rest would destroy the training data before it is
  * collected.
  */
 
@@ -26,20 +31,29 @@ import { bestTokenAlignment } from "./text_similarity";
  */
 export const DEFAULT_FUZZY_MINIMUM_SCORE = 0.72;
 
-/** The five ways a chunk can match, all scored for every chunk. */
+/**
+ * The shortest field that may count as contained by the query.
+ *
+ * Without a floor, any chunk shorter than the query matches on a fragment —
+ * a stray word, a bare date — and the method fires on everything, which is
+ * the same as meaning nothing.
+ */
+const MINIMUM_CONTAINED_BY_LENGTH = 8;
+
+/** The six ways a chunk can match, all scored for every chunk. */
 export type MatchMethod =
   | "exact"
   | "starts_with"
   | "ends_with"
   | "contains"
+  | "contained_by"
   | "fuzzy";
 
 /**
  * Every method's score for one chunk.
  *
  * Named from the field's side throughout: the field contains the query, the
- * field starts with the query. The genuine reverse — the query containing the
- * field — is a different operation and is not implemented.
+ * field starts with the query, the field is contained by the query.
  */
 export type LexicalScores = Record<MatchMethod, number>;
 
@@ -71,6 +85,7 @@ export function scoreLexically(query: string, field: string): LexicalScores {
       starts_with: 0,
       ends_with: 0,
       contains: 0,
+      contained_by: 0,
       fuzzy: 0,
     };
   }
@@ -81,6 +96,22 @@ export function scoreLexically(query: string, field: string): LexicalScores {
   const startsWith = normalisedField.startsWith(normalisedQuery) ? 1 : 0;
   const endsWith = normalisedField.trimEnd().endsWith(normalisedQuery) ? 1 : 0;
   const contains = normalisedField.includes(normalisedQuery) ? 1 : 0;
+
+  // The reverse direction: the field appears inside the query. Finds the
+  // short entries a long question passes over — asking "what is Frodo's
+  // collar size in inches" reaches a chunk reading "Neck: 7.5 inches",
+  // which `contains` cannot, because the field holds only a fraction of
+  // what was asked.
+  //
+  // Trimmed and length-guarded: without the guard every chunk shorter than
+  // the query would match on whitespace or a stray character, which would
+  // make the method fire on everything and mean nothing.
+  const trimmedField = normalisedField.trim();
+  const containedBy =
+    trimmedField.length >= MINIMUM_CONTAINED_BY_LENGTH
+    && normalisedQuery.includes(trimmedField)
+      ? 1
+      : 0;
 
   // Token alignment only. tokenSetRatio is deliberately absent: it returns 1
   // whenever the query's tokens are a subset of the field's, which is
@@ -104,6 +135,7 @@ export function scoreLexically(query: string, field: string): LexicalScores {
     starts_with: startsWith,
     ends_with: endsWith,
     contains,
+    contained_by: containedBy,
     fuzzy,
   };
 }
@@ -115,6 +147,7 @@ function strongestMethod(scores: LexicalScores): MatchMethod {
     "starts_with",
     "ends_with",
     "contains",
+    "contained_by",
     "fuzzy",
   ];
   let best: MatchMethod = "fuzzy";
@@ -152,7 +185,11 @@ export function searchLexically(
     const bestScore = scores[bestMethod];
 
     const anchored =
-      scores.exact + scores.starts_with + scores.ends_with + scores.contains;
+      scores.exact
+      + scores.starts_with
+      + scores.ends_with
+      + scores.contains
+      + scores.contained_by;
     if (anchored === 0 && scores.fuzzy < options.fuzzyMinimumScore) {
       continue;
     }

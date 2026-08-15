@@ -70,13 +70,56 @@ describe("the four anchored methods", () => {
   });
 });
 
+describe("contained_by, the reverse of contains", () => {
+  test("a short chunk inside a long query matches", () => {
+    // What contains cannot do. A full question passes over the short entries
+    // that answer it, because no chunk holds the whole question.
+    const scores = scoreLexically(
+      "what is Frodo's neck measurement for a collar",
+      "Neck: 7.5 inches",
+    );
+    expect(scores.contains).toBe(0);
+    expect(scores.contained_by).toBe(0);
+  });
+
+  test("a chunk literally inside the query matches", () => {
+    const scores = scoreLexically(
+      "does the store say Neck: 7.5 inches anywhere",
+      "Neck: 7.5 inches",
+    );
+    expect(scores.contained_by).toBe(1);
+    expect(scores.contains).toBe(0);
+  });
+
+  test("the two directions are distinguishable", () => {
+    // contains: the field holds the query. contained_by: the query holds the
+    // field. Both are one relationship seen from opposite ends.
+    const long = "Idin has a toy poodle named Frodo";
+    expect(scoreLexically("toy poodle", long).contains).toBe(1);
+    expect(scoreLexically("toy poodle", long).contained_by).toBe(0);
+    expect(scoreLexically(long, "toy poodle").contained_by).toBe(1);
+    expect(scoreLexically(long, "toy poodle").contains).toBe(0);
+  });
+
+  test("a fragment too short to mean anything does not match", () => {
+    // Without a floor every chunk shorter than the query matches on a stray
+    // word, and the method fires on everything, which is the same as meaning
+    // nothing.
+    expect(
+      scoreLexically("a long question about the dog and its collar", "dog")
+        .contained_by,
+    ).toBe(0);
+  });
+});
+
 describe("every method is always scored", () => {
-  test("all five appear even when only one matched", () => {
+  test("all six appear even when only one matched", () => {
     // The learning loop needs the full feature vector per candidate, so
     // computing one method and discarding the rest would destroy the training
     // data before it is collected.
     const scores = scoreLexically("poodle", "Idin has a toy poodle");
     expect(Object.keys(scores).sort()).toEqual([
+      "contained_by",
       "contains",
       "ends_with",
       "exact",

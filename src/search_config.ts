@@ -32,6 +32,15 @@ export type SearchQuotas = {
   endsWith: number;
   /** `contains`, ordered shortest chunk first. */
   contains: number;
+  /**
+   * `contained_by` — the chunk appears inside the query — shortest first.
+   *
+   * The reverse direction of `contains`, and it finds what `contains` cannot:
+   * a full question passes over the short entries that answer it, because no
+   * chunk holds the whole question. Asking "what is Frodo's neck measurement
+   * for a collar" reaches "Neck: 7.5 inches" only this way.
+   */
+  containedBy: number;
   /** Fuzzy, ordered by score. */
   fuzzy: number;
   /** Semantic, ordered by cosine similarity. */
@@ -54,6 +63,7 @@ export const DEFAULT_SEARCH_QUOTAS: SearchQuotas = {
   startsWith: 15,
   endsWith: 15,
   contains: 40,
+  containedBy: 20,
   fuzzy: 30,
   cosine: 40,
 };
@@ -94,6 +104,7 @@ export function fuzzyPoolSize(
     + quotas.startsWith
     + quotas.endsWith
     + quotas.contains
+    + quotas.containedBy
   );
 }
 

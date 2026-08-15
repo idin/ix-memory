@@ -59,13 +59,13 @@ import {
   type SearchQuotas,
 } from "./search_config";
 import {
-  applyJudgments,
-  describeJudgments,
+  applyAssessments,
+  describeAssessments,
   noOpRelevanceSink,
   recordCandidates,
   type CandidateRecord,
   type RelevanceSink,
-} from "./relevance_labels";
+} from "./agent_assessments";
 import { describeSearchResults } from "./search_results";
 import { readWholeStore } from "./store_read";
 import {
@@ -298,6 +298,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
           startsWith: Math.ceil(DEFAULT_SEARCH_QUOTAS.startsWith * scale),
           endsWith: Math.ceil(DEFAULT_SEARCH_QUOTAS.endsWith * scale),
           contains: Math.ceil(DEFAULT_SEARCH_QUOTAS.contains * scale),
+          containedBy: Math.ceil(DEFAULT_SEARCH_QUOTAS.containedBy * scale),
           fuzzy: Math.ceil(DEFAULT_SEARCH_QUOTAS.fuzzy * scale),
           cosine: Math.ceil(DEFAULT_SEARCH_QUOTAS.cosine * scale),
         };
@@ -322,7 +323,10 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
           outcome.results.map((result) => ({
             path: result.chunk.path,
             ordinal: result.chunk.ordinal,
+            chunkLength: result.chunk.text.length,
             features: result.features,
+            cosineSimilarityRank: result.cosineSimilarityRank,
+            fuzzyRank: result.fuzzyRank,
           })),
           Date.now(),
         );
@@ -346,7 +350,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
     );
 
     this.registerTool(
-      "judge_search_results",
+      "assess_search_results",
       {
         description:
           "Say which results from the last search actually answered the "
@@ -398,16 +402,17 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
               ordinal: record.ordinal,
             }));
 
-        const judged = applyJudgments(
+        const assessed = applyAssessments(
           this.lastCandidates,
           at(relevant),
           at(irrelevant),
+          this.props?.login ?? "agent",
         );
-        await this.relevanceSink(judged);
-        this.lastCandidates = judged;
+        await this.relevanceSink(assessed);
+        this.lastCandidates = assessed;
 
         return {
-          content: [{ type: "text", text: describeJudgments(judged) }],
+          content: [{ type: "text", text: describeAssessments(assessed) }],
         };
       },
     );
@@ -1228,8 +1233,8 @@ export {
 } from "./embeddings";
 export { noOpSearchIndexStore } from "./search_index";
 export type {
+  AgentAssessment,
   CandidateRecord,
-  RelevanceLabel,
   RelevanceSink,
-} from "./relevance_labels";
-export { noOpRelevanceSink } from "./relevance_labels";
+} from "./agent_assessments";
+export { noOpRelevanceSink } from "./agent_assessments";

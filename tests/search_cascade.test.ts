@@ -23,6 +23,7 @@ const QUOTAS = {
   startsWith: 2,
   endsWith: 2,
   contains: 3,
+  containedBy: 2,
   fuzzy: 2,
   cosine: 3,
 };
@@ -37,6 +38,7 @@ function hit(
     starts_with: 0,
     ends_with: 0,
     contains: 0,
+    contained_by: 0,
     fuzzy: 0,
     ...scores,
   };
@@ -214,6 +216,7 @@ describe("what a result carries", () => {
       startsWith: 0,
       endsWith: 0,
       contains: 1,
+      containedBy: 0,
       fuzzy: 0.87,
       cosine: 0.62,
     });

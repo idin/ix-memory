@@ -48,6 +48,8 @@ export type SearchFeatures = {
   startsWith: number;
   endsWith: number;
   contains: number;
+  /** The reverse of contains: the chunk appears inside the query. */
+  containedBy: number;
   fuzzy: number;
   /** Null when semantic search did not run or the chunk was unembedded. */
   cosine: number | null;
@@ -60,6 +62,14 @@ export type CascadeResult = {
   tier: SearchTier;
   /** Every method that matched at all, not only the claiming one. */
   matchedBy: SearchTier[];
+  /**
+   * Where semantic search placed this chunk, from 1, or null if it did not
+   * return it. Only two methods produce an ordering — the anchored ones are
+   * binary, so a rank there would describe the cascade rather than the match.
+   */
+  cosineSimilarityRank: number | null;
+  /** Where fuzzy matching placed this chunk, from 1, or null if unmatched. */
+  fuzzyRank: number | null;
 };
 
 /** The tiers, strongest first. */
@@ -68,6 +78,7 @@ const TIER_ORDER: MatchMethod[] = [
   "starts_with",
   "ends_with",
   "contains",
+  "contained_by",
   "fuzzy",
 ];
 
@@ -108,13 +119,27 @@ export function cascadeResults(
   quotas: SearchQuotas,
 ): CascadeResult[] {
   const cosineByKey = new Map<string, number>();
-  for (const hit of semantic) {
+  const cosineRankByKey = new Map<string, number>();
+  semantic.forEach((hit, index) => {
     cosineByKey.set(keyOf(hit.chunk), hit.similarity);
-  }
+    cosineRankByKey.set(keyOf(hit.chunk), index + 1);
+  });
+
   const lexicalByKey = new Map<string, LexicalHit>();
   for (const hit of lexical) {
     lexicalByKey.set(keyOf(hit.chunk), hit);
   }
+
+  // Ranked over everything fuzzy matched, not over what the cascade returned,
+  // so the rank describes how the method scored this chunk rather than where
+  // the cascade happened to place it.
+  const fuzzyRankByKey = new Map<string, number>();
+  lexical
+    .filter((hit) => hit.scores.fuzzy > 0)
+    .sort((first, second) => second.scores.fuzzy - first.scores.fuzzy)
+    .forEach((hit, index) => {
+      fuzzyRankByKey.set(keyOf(hit.chunk), index + 1);
+    });
 
   const claimed = new Set<string>();
   const results: CascadeResult[] = [];
@@ -134,11 +159,14 @@ export function cascadeResults(
         startsWith: hit?.scores.starts_with ?? 0,
         endsWith: hit?.scores.ends_with ?? 0,
         contains: hit?.scores.contains ?? 0,
+        containedBy: hit?.scores.contained_by ?? 0,
         fuzzy: hit?.scores.fuzzy ?? 0,
         cosine,
       },
       tier,
       matchedBy: methodsThatMatched(hit, cosine),
+      cosineSimilarityRank: cosineRankByKey.get(key) ?? null,
+      fuzzyRank: fuzzyRankByKey.get(key) ?? null,
     });
   }
 
@@ -164,6 +192,11 @@ export function cascadeResults(
     { tier: "starts_with", scoreKey: "starts_with", quota: quotas.startsWith },
     { tier: "ends_with", scoreKey: "ends_with", quota: quotas.endsWith },
     { tier: "contains", scoreKey: "contains", quota: quotas.contains },
+    {
+      tier: "contained_by",
+      scoreKey: "contained_by",
+      quota: quotas.containedBy,
+    },
   ];
 
   for (const { tier, scoreKey, quota } of anchoredTiers) {
