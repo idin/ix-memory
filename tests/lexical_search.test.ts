@@ -101,14 +101,22 @@ describe("contained_by, the reverse of contains", () => {
     expect(scoreLexically(long, "toy poodle").contains).toBe(0);
   });
 
-  test("a fragment too short to mean anything does not match", () => {
-    // Without a floor every chunk shorter than the query matches on a stray
-    // word, and the method fires on everything, which is the same as meaning
-    // nothing.
+  test("a short fragment matches, and is bounded by the cascade instead", () => {
+    // No minimum length here. Filtering by size would delete candidates
+    // before the cascade could rank them, which is the cut that destroys
+    // recall — and it is unnecessary, because the cascade already sorts this
+    // tier shortest-first and caps it by quota.
     expect(
       scoreLexically("a long question about the dog and its collar", "dog")
         .contained_by,
-    ).toBe(0);
+    ).toBe(1);
+  });
+
+  test("an empty field does not match everything", () => {
+    // The one case worth excluding, and not on grounds of length: every
+    // string contains the empty string, so without this a blank chunk would
+    // match every query ever made.
+    expect(scoreLexically("any query at all", "   ").contained_by).toBe(0);
   });
 });
 

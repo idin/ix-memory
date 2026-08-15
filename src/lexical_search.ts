@@ -31,15 +31,6 @@ import { bestTokenAlignment } from "./text_similarity";
  */
 export const DEFAULT_FUZZY_MINIMUM_SCORE = 0.72;
 
-/**
- * The shortest field that may count as contained by the query.
- *
- * Without a floor, any chunk shorter than the query matches on a fragment —
- * a stray word, a bare date — and the method fires on everything, which is
- * the same as meaning nothing.
- */
-const MINIMUM_CONTAINED_BY_LENGTH = 8;
-
 /** The six ways a chunk can match, all scored for every chunk. */
 export type MatchMethod =
   | "exact"
@@ -103,15 +94,14 @@ export function scoreLexically(query: string, field: string): LexicalScores {
   // which `contains` cannot, because the field holds only a fraction of
   // what was asked.
   //
-  // Trimmed and length-guarded: without the guard every chunk shorter than
-  // the query would match on whitespace or a stray character, which would
-  // make the method fire on everything and mean nothing.
+  // No minimum length. A short fragment matching is not a problem to guard
+  // against here: the cascade sorts this tier shortest-first and caps it by
+  // quota, so bounding it is already handled, and a floor would delete
+  // candidates before the cascade could rank them — a filter by size, which
+  // is the thing that destroys recall.
   const trimmedField = normalisedField.trim();
   const containedBy =
-    trimmedField.length >= MINIMUM_CONTAINED_BY_LENGTH
-    && normalisedQuery.includes(trimmedField)
-      ? 1
-      : 0;
+    trimmedField.length > 0 && normalisedQuery.includes(trimmedField) ? 1 : 0;
 
   // Token alignment only. tokenSetRatio is deliberately absent: it returns 1
   // whenever the query's tokens are a subset of the field's, which is
