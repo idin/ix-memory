@@ -31,10 +31,7 @@ const CHUNKS = [
   ...chunkFile(file("ix/memory/facts/core.md", CORE)),
 ];
 
-const OPTIONS = {
-  fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE,
-  limit: 10,
-};
+const OPTIONS = { fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE };
 
 describe("the four anchored methods", () => {
   test("contains is named from the field's side", () => {
@@ -137,18 +134,17 @@ describe("searching the store", () => {
     );
   });
 
-  test("results are ordered best first", () => {
-    const hits = searchLexically(CHUNKS, "poodle", OPTIONS);
-    const scores = hits.map((hit) => hit.bestScore);
-    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
-  });
-
-  test("the limit is respected", () => {
-    const hits = searchLexically(CHUNKS, "Idin", {
-      ...OPTIONS,
-      limit: 1,
-    });
-    expect(hits).toHaveLength(1);
+  test("every match is returned, uncapped and unsorted", () => {
+    // Deliberately not ranked or cut here. Ordering and quotas belong to the
+    // cascade, which fills each method's share from what earlier methods did
+    // not claim — sorting by one best score would mix the methods back
+    // together, and cutting to a limit would discard candidates the cascade
+    // had not yet had a chance to consider.
+    //
+    // Recall is the goal: precision is recoverable by whoever reads the
+    // results, and recall is not recoverable by anyone.
+    const hits = searchLexically(CHUNKS, "Idin", OPTIONS);
+    expect(hits.length).toBeGreaterThan(1);
   });
 
   test("a hit says where it matched, for quoting back", () => {

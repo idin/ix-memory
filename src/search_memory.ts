@@ -5,12 +5,14 @@
  * is the order they run in and the decisions that order encodes.
  *
  * The index is brought up to date first, because a search against a stale
- * index answers a question about the past without saying so. Ranking happens
- * before sibling expansion, so a neighbour's text cannot lift the score of a
- * chunk that did not itself match. And the candidate pool is wider than the
- * returned results, so the learning loop sees examples the ranker did not
- * favour — the sampling that stops a trained model inheriting the current
- * ranker's blind spots.
+ * index answers a question about the past without saying so. Selection happens
+ * before sibling expansion, so a neighbour's text cannot pull in a chunk that
+ * did not itself match.
+ *
+ * Nothing here ranks results against each other across methods. Recall is the
+ * goal: precision is recoverable by whoever reads the results, and recall is
+ * not recoverable by anyone, since nothing downstream can retrieve what was
+ * never returned. Selection is a per-method cascade — see search_cascade.ts.
  */
 
 import { chunkFile, chunkSearchText, type MemoryChunk } from "./chunking";
@@ -22,17 +24,20 @@ import {
   type Embedder,
 } from "./embeddings";
 import { applyDepth } from "./deep_memory";
-import { fuseByReciprocalRank, RECIPROCAL_RANK_CONSTANT } from "./hybrid_search";
-import type { SearchResult } from "./hybrid_search";
+import { cascadeResults, type CascadeResult } from "./search_cascade";
+import {
+  FILES_INDEXED_PER_SEARCH,
+  FUZZY_FLOOR,
+  MAXIMUM_SIBLINGS_PER_HIT,
+  cosinePoolSize,
+  type SearchQuotas,
+} from "./search_config";
 import {
   planRebuild,
   readHeadCommit,
   type RebuildMode,
 } from "./index_rebuild";
-import {
-  DEFAULT_FUZZY_MINIMUM_SCORE,
-  searchLexically,
-} from "./lexical_search";
+import { searchLexically } from "./lexical_search";
 import type { MemoryRepoConfig } from "./memory_repo";
 import {
   hasPersistentIndex,
@@ -40,59 +45,22 @@ import {
   type IndexedChunk,
   type SearchIndexStore,
 } from "./search_index";
-import { MAXIMUM_SIBLINGS_PER_HIT, attachSiblings } from "./sibling_chunks";
+import { attachSiblings } from "./sibling_chunks";
 import type { ExpandedHit } from "./sibling_chunks";
 import { readWholeStore } from "./store_read";
-
-/**
- * How many results a search returns by default.
- *
- * Chosen for what an agent will actually read before deciding, not for a round
- * number: past about five, results stop being read and start being skimmed,
- * and every one costs context that the deep-memory work exists to conserve.
- */
-export const DEFAULT_SEARCH_LIMIT = 5;
-
-/**
- * How many candidates are scored before the limit is applied.
- *
- * Wider than what is returned, deliberately. The extra candidates are the
- * sampling beyond top-N that stops relevance labels inheriting the current
- * ranker's blind spots: a model trained only on what the ranker already
- * favoured learns to reproduce it.
- */
-export const CANDIDATE_POOL_SIZE = 20;
 
 /** Resolved work is left out unless asked for, as everywhere else. */
 export const DEFAULT_INCLUDE_DEEP = false;
 
-/**
- * How many files to index in one search.
- *
- * A Worker may make a bounded number of outbound requests per invocation —
- * 50 on the free plan, 10,000 on paid — and every service call counts,
- * including D1 and Workers AI. Indexing one file costs a blob read and a
- * database write, with embedding calls batched across the group, so a full
- * build of this store ran to roughly 220 and failed outright.
- *
- * Building in bounded batches fits any plan and, more importantly, does not
- * assume a store size. A fixed ceiling is exceeded by a large enough store
- * whatever the plan, and the failure is a search that cannot run at all.
- *
- * Set low enough to leave room for the searching itself — the head-commit
- * read, the comparison, the query embedding, and loading what is already
- * indexed.
- */
-export const FILES_INDEXED_PER_SEARCH = 12;
-
 export type SearchOptions = {
   query: string;
-  limit: number;
+  /** How many results each tier of the cascade may contribute. */
+  quotas: SearchQuotas;
   includeDeep: boolean;
 };
 
 export type SearchOutcome = {
-  results: ExpandedHit<SearchResult>[];
+  results: ExpandedHit<CascadeResult>[];
   /** Every chunk searched, for reporting what was held back. */
   searched: MemoryChunk[];
   semanticAvailable: boolean;
@@ -274,28 +242,31 @@ export async function searchMemory(
   const visible = indexed.filter((entry) => visiblePaths.has(entry.chunk.path));
   const chunks = visible.map((entry) => entry.chunk);
 
+  // Every lexical candidate, unsorted and uncapped. Cutting here would
+  // discard candidates the cascade has not yet had the chance to consider.
   const lexical = searchLexically(chunks, options.query, {
-    fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE,
-    limit: CANDIDATE_POOL_SIZE,
+    fuzzyMinimumScore: FUZZY_FLOOR,
   });
+
+  const exactCount = lexical.filter((hit) => hit.scores.exact > 0).length;
 
   let semantic: ReturnType<typeof searchSemantically> = [];
   const semanticAvailable = embed !== null && visible.some((one) => one.vector);
   if (embed && semanticAvailable) {
     const [queryVector] = await embed([options.query]);
+    // Wide enough that the tiers above it can take their share without
+    // starving the semantic quota — the pool is cut before the cascade runs,
+    // so it must account for what earlier tiers will claim from it.
     semantic = searchSemantically(visible, queryVector, {
-      limit: CANDIDATE_POOL_SIZE,
+      limit: cosinePoolSize(options.quotas, exactCount),
     });
   }
 
-  const fused = fuseByReciprocalRank(lexical, semantic, {
-    reciprocalRankConstant: RECIPROCAL_RANK_CONSTANT,
-    limit: options.limit,
-  });
+  const selected = cascadeResults(lexical, semantic, options.quotas);
 
-  // After ranking, never before: expanding first would let a neighbour's text
-  // lift the score of a chunk that did not match on its own.
-  const results = attachSiblings(fused, chunks, {
+  // After selection, never before: expanding first would let a neighbour's
+  // text pull in a chunk that did not match on its own.
+  const results = attachSiblings(selected, chunks, {
     maximum: MAXIMUM_SIBLINGS_PER_HIT,
   });
 

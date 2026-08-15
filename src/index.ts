@@ -53,11 +53,11 @@ import {
   type SearchIndexStore,
 } from "./search_index";
 import type { Embedder } from "./embeddings";
+import { DEFAULT_INCLUDE_DEEP, searchMemory } from "./search_memory";
 import {
-  DEFAULT_INCLUDE_DEEP,
-  DEFAULT_SEARCH_LIMIT,
-  searchMemory,
-} from "./search_memory";
+  DEFAULT_SEARCH_QUOTAS,
+  type SearchQuotas,
+} from "./search_config";
 import {
   applyJudgments,
   describeJudgments,
@@ -130,7 +130,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   server = new McpServer({
     name: "ix-memory",
     title: "Ix Memory",
-    version: "0.3.0",
+    version: "0.4.0",
   });
 
   /**
@@ -255,10 +255,15 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
         description:
           "Search the memory store by meaning and by wording at once. Use "
           + "this instead of guessing which file holds something, or reading "
-          + "several files to find out whether a fact was recorded. Returns "
-          + "the matching passages with their file, heading and line numbers, "
-          + "and says which method matched each one. Superseded values are "
-          + "excluded from matching and labelled where they appear.",
+          + "several files to find out whether a fact was recorded.\n\n"
+          + "Returns a deliberately wide set — every exact match, plus the "
+          + "best of each other method — because missing a result is worse "
+          + "than returning a few useless ones. Expect to skim: each result "
+          + "says how it was found, and results found by meaning alone will "
+          + "not contain the query's words at all. Read the ones that look "
+          + "relevant and ignore the rest.\n\n"
+          + "Superseded values are excluded from matching and labelled where "
+          + "they appear.",
         inputSchema: {
           query: z
             .string()
@@ -267,14 +272,16 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
               "What to look for. Plain words work; the search matches "
                 + "meaning as well as spelling, so 'canine' finds a dog.",
             ),
-          limit: z
+          breadth: z
             .number()
-            .int()
-            .min(1)
-            .max(25)
+            .min(0.25)
+            .max(4)
             .optional()
             .describe(
-              `How many results to return. Defaults to ${DEFAULT_SEARCH_LIMIT}.`,
+              "Scales how many results each method may contribute. 1 is the "
+                + "default and returns a wide set; raise it when a first "
+                + "search may have missed something, lower it when the answer "
+                + "is likely to be an exact phrase.",
             ),
           include_resolved: z
             .boolean()
@@ -285,14 +292,23 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
             ),
         },
       },
-      async ({ query, limit, include_resolved }) => {
+      async ({ query, breadth, include_resolved }) => {
+        const scale = breadth ?? 1;
+        const quotas: SearchQuotas = {
+          startsWith: Math.ceil(DEFAULT_SEARCH_QUOTAS.startsWith * scale),
+          endsWith: Math.ceil(DEFAULT_SEARCH_QUOTAS.endsWith * scale),
+          contains: Math.ceil(DEFAULT_SEARCH_QUOTAS.contains * scale),
+          fuzzy: Math.ceil(DEFAULT_SEARCH_QUOTAS.fuzzy * scale),
+          cosine: Math.ceil(DEFAULT_SEARCH_QUOTAS.cosine * scale),
+        };
+
         const outcome = await searchMemory(
           this.repoConfig(),
           this.searchIndex,
           this.embedder(),
           {
             query,
-            limit: limit ?? DEFAULT_SEARCH_LIMIT,
+            quotas,
             includeDeep: include_resolved ?? DEFAULT_INCLUDE_DEEP,
           },
         );

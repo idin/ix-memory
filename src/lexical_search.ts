@@ -139,7 +139,7 @@ function strongestMethod(scores: LexicalScores): MatchMethod {
 export function searchLexically(
   chunks: MemoryChunk[],
   query: string,
-  options: { fuzzyMinimumScore: number; limit: number },
+  options: { fuzzyMinimumScore: number },
 ): LexicalHit[] {
   const hits: LexicalHit[] = [];
 
@@ -167,7 +167,10 @@ export function searchLexically(
     });
   }
 
-  return hits
-    .sort((first, second) => second.bestScore - first.bestScore)
-    .slice(0, options.limit);
+  // Deliberately unsorted and uncapped. Ordering and quotas belong to the
+  // cascade, which fills each method's share from what earlier methods did
+  // not claim — sorting by a single best score here would mix the methods
+  // back together and cutting to a limit would discard candidates the
+  // cascade had not yet had the chance to consider.
+  return hits;
 }

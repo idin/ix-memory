@@ -18,7 +18,7 @@
 
 import type { MemoryChunk } from "./chunking";
 import { describeDeep, summariseDeep } from "./deep_memory";
-import type { SearchResult } from "./hybrid_search";
+import { summariseTiers, type CascadeResult } from "./search_cascade";
 import type { ExpandedHit } from "./sibling_chunks";
 
 /** How much of a chunk to show before cutting it. */
@@ -49,7 +49,7 @@ function excerpt(chunk: MemoryChunk, matchedAt: number | null): string {
 }
 
 /** Say why a result is in the list. */
-function describeWhy(result: SearchResult): string {
+function describeWhy(result: CascadeResult): string {
   const parts: string[] = [];
   if (result.matchedBy.length > 0) {
     parts.push(result.matchedBy.join(", "));
@@ -79,7 +79,7 @@ export type SearchContext = {
  * @returns Text.
  */
 export function describeSearchResults(
-  results: ExpandedHit<SearchResult>[],
+  results: ExpandedHit<CascadeResult>[],
   context: SearchContext,
 ): string {
   const lines: string[] = [];
@@ -106,8 +106,16 @@ export function describeSearchResults(
     return lines.join("\n");
   }
 
+  // Recall is the goal, so the set is wide and the reader does the judging.
+  // Saying how each result was found is what makes that judging cheap.
+  const byTier = summariseTiers(results)
+    .map((entry) => `${entry.count} ${entry.tier}`)
+    .join(", ");
   lines.push(
-    `${results.length} result(s) for "${context.query}".`,
+    `${results.length} result(s) for "${context.query}" — ${byTier}.`,
+    "",
+    "Ordered by how the match was made, not by how good it is. Read what "
+      + "looks relevant; the rest is the cost of not missing anything.",
     "",
   );
 
@@ -120,11 +128,11 @@ export function describeSearchResults(
         + `${describeWhy(result)}`,
     );
 
-    if (result.semanticOnly) {
+    if (result.tier === "cosine") {
       // Worth flagging: the words do not appear anywhere in this chunk, so a
       // reader looking for them will not find them.
       lines.push(
-        "   matched by meaning alone — the query's words do not appear here",
+        "   found by meaning alone — the query's words do not appear here",
       );
     }
 

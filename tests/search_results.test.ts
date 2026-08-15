@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { describeSearchResults } from "../src/search_results";
-import type { SearchResult } from "../src/hybrid_search";
+import type { CascadeResult } from "../src/search_cascade";
 import type { ExpandedHit } from "../src/sibling_chunks";
 import { chunk } from "./chunk_fixture";
 
@@ -18,8 +18,8 @@ import { chunk } from "./chunk_fixture";
  */
 
 function result(
-  overrides: Partial<ExpandedHit<SearchResult>> = {},
-): ExpandedHit<SearchResult> {
+  overrides: Partial<ExpandedHit<CascadeResult>> = {},
+): ExpandedHit<CascadeResult> {
   return {
     chunk: chunk(),
     features: {
@@ -29,12 +29,9 @@ function result(
       contains: 1,
       fuzzy: 1,
       cosine: null,
-      lexicalRank: 1,
-      semanticRank: null,
     },
-    fusedScore: 0.016,
+    tier: "contains",
     matchedBy: ["contains"],
-    semanticOnly: false,
     siblings: [],
     ...overrides,
   };
@@ -116,10 +113,10 @@ describe("a result explains itself", () => {
     // Without this, a reader searching the excerpt for their query's words
     // finds nothing and concludes the result is wrong.
     const text = describeSearchResults(
-      [result({ semanticOnly: true, matchedBy: [] })],
+      [result({ tier: "cosine", matchedBy: ["cosine"] })],
       CONTEXT,
     );
-    expect(text).toContain("matched by meaning alone");
+    expect(text).toContain("found by meaning alone");
   });
 });
 

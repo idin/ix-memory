@@ -25,7 +25,7 @@
  * something beyond the top results is occasionally included.
  */
 
-import type { SearchFeatures } from "./hybrid_search";
+import type { SearchFeatures } from "./search_cascade";
 
 /**
  * What a judge concluded about one candidate.

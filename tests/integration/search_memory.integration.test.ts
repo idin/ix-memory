@@ -165,10 +165,7 @@ describe("searching what was actually read", () => {
     await eventually(async () => {
       const files = await readWholeStore(config);
       const chunks = files.flatMap((file) => chunkFile(file));
-      const hits = searchLexically(chunks, "Rega Planar", {
-        fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE,
-        limit: 5,
-      });
+      const hits = searchLexically(chunks, "Rega Planar", { fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE });
       expect(hits.length).toBeGreaterThan(0);
       expect(hits[0].chunk.path).toBe(path);
     });
@@ -190,10 +187,7 @@ describe("searching what was actually read", () => {
     await eventually(async () => {
       const files = await readWholeStore(config);
       const chunks = files.flatMap((file) => chunkFile(file));
-      const hits = searchLexically(chunks, "Technics SL-1200", {
-        fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE,
-        limit: 5,
-      });
+      const hits = searchLexically(chunks, "Technics SL-1200", { fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE });
       const fromThisFile = hits.filter((hit) => hit.chunk.path === path);
       expect(fromThisFile).toEqual([]);
 
@@ -209,10 +203,7 @@ describe("searching what was actually read", () => {
     const files = await readWholeStore(config);
     const chunks = files.flatMap((file) => chunkFile(file));
     expect(
-      searchLexically(chunks, "xylophone quarterly dividend", {
-        fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE,
-        limit: 5,
-      }),
+      searchLexically(chunks, "xylophone quarterly dividend", { fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE }),
     ).toEqual([]);
   });
 });

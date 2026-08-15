@@ -1,0 +1,178 @@
+/**
+ * Every tunable number search uses, in one place.
+ *
+ * These are decisions rather than facts. A quota, a threshold, a batch size —
+ * each could sensibly be different, and the test for whether something belongs
+ * here is exactly that: could this value ever reasonably change? If yes it is
+ * configuration, not a constant buried in the function that happens to use it.
+ *
+ * Values that are *derivable* from these are deliberately absent. The
+ * candidate pool sizes N and M are computed from the quotas rather than
+ * stored, because a stored copy drifts from the numbers it was meant to
+ * follow the first time somebody edits one and not the other.
+ */
+
+/**
+ * How many results each tier of the cascade may contribute.
+ *
+ * The cascade exists because recall is the goal and ranking is not. Search
+ * returns every exact match, then fills each remaining tier from what earlier
+ * tiers did not already claim, so a chunk appears once — at its strongest
+ * method — and no quota is spent on chunks another method already returned.
+ *
+ * Set wide on purpose. Idin's rule: a hundred results of which ninety are
+ * useless is fine, ten results missing the one that mattered is not. Precision
+ * is recoverable by whoever reads the results; recall is not recoverable at
+ * all, because nothing downstream can retrieve what was never returned.
+ */
+export type SearchQuotas = {
+  /** `starts_with`, ordered shortest chunk first. */
+  startsWith: number;
+  /** `ends_with`, ordered shortest chunk first. */
+  endsWith: number;
+  /** `contains`, ordered shortest chunk first. */
+  contains: number;
+  /** Fuzzy, ordered by score. */
+  fuzzy: number;
+  /** Semantic, ordered by cosine similarity. */
+  cosine: number;
+};
+
+/**
+ * The default quotas.
+ *
+ * Roughly 140 results against a store of about 380 chunks — a third of it, for
+ * a query that hits every tier. Most queries hit far fewer.
+ *
+ * `contains` and `cosine` are the widest because they are the two that find
+ * things the others cannot: `contains` catches any wording that literally
+ * appears, and `cosine` catches wording that does not appear at all. The
+ * anchored tiers are narrower because a chunk matching `starts_with` almost
+ * always also matches `contains`, so their quota buys less new coverage.
+ */
+export const DEFAULT_SEARCH_QUOTAS: SearchQuotas = {
+  startsWith: 15,
+  endsWith: 15,
+  contains: 40,
+  fuzzy: 30,
+  cosine: 40,
+};
+
+/**
+ * Exact matches are never capped.
+ *
+ * A chunk whose entire text is the query is as good as a match gets, and there
+ * are never many — capping them would discard the best results to make room
+ * for worse ones. Stated as a named value rather than left implicit so the
+ * decision is visible.
+ */
+export const EXACT_MATCHES_ARE_UNCAPPED = true;
+
+/**
+ * How wide the fuzzy candidate pool must be before the cascade runs.
+ *
+ * Every chunk has a fuzzy score, so the pool has to be cut somewhere, and it
+ * is cut *before* earlier tiers take their share. If it were cut to exactly
+ * the quota, any candidate also claimed by an earlier tier would leave the
+ * fuzzy quota short — the pool would shrink by however much overlapped, and
+ * genuinely fuzzy-only matches would be lost to make room for chunks already
+ * returned.
+ *
+ * So the pool is the quota plus the most that earlier tiers could take.
+ *
+ * @param quotas - The tier quotas.
+ * @param exactCount - How many exact matches were found, known by this point.
+ * @returns How many fuzzy candidates to keep before the cascade.
+ */
+export function fuzzyPoolSize(
+  quotas: SearchQuotas,
+  exactCount: number,
+): number {
+  return (
+    quotas.fuzzy
+    + exactCount
+    + quotas.startsWith
+    + quotas.endsWith
+    + quotas.contains
+  );
+}
+
+/**
+ * How wide the semantic candidate pool must be.
+ *
+ * Same reasoning as {@link fuzzyPoolSize}, one tier further down: everything
+ * above cosine in the cascade can take from its pool, fuzzy included.
+ *
+ * @param quotas - The tier quotas.
+ * @param exactCount - How many exact matches were found.
+ * @returns How many semantic candidates to keep before the cascade.
+ */
+export function cosinePoolSize(
+  quotas: SearchQuotas,
+  exactCount: number,
+): number {
+  return fuzzyPoolSize(quotas, exactCount) + quotas.cosine;
+}
+
+/**
+ * The fuzzy score below which a match is not worth considering at all.
+ *
+ * Deliberately low, and lower than a precision-focused search would use. Its
+ * only job is to keep the candidate pool from being filled by chunks scoring
+ * near zero; ordering within the pool is what decides who survives, and the
+ * quota is what bounds it.
+ *
+ * Measured on the real store: unrelated queries score 0.00 to 0.58, genuine
+ * typos 0.80 to 0.98. This sits below both, so a real match cannot fall under
+ * it, which is the property that matters when recall is the goal.
+ */
+export const FUZZY_FLOOR = 0.6;
+
+/**
+ * The shortest query token worth matching fuzzily.
+ *
+ * Jaro-Winkler is unreliable below this: with three characters a single
+ * agreement moves the score a long way and the prefix bonus covers most of the
+ * string. Measured on the real store, "Mid-40s" — tokenizing to "mid" and
+ * "40s" — scored 0.956 against a message about workbenches, higher than a
+ * genuine typo scored against the word it meant.
+ *
+ * Short tokens are still matched exactly and by substring, which is the only
+ * way a three-letter token means anything.
+ */
+export const MINIMUM_FUZZY_TOKEN_LENGTH = 4;
+
+/**
+ * How many files to index per search.
+ *
+ * A Worker may make a bounded number of outbound calls per invocation — 50 on
+ * the free plan — and every service call counts, including the database and
+ * the embedding model. Indexing one file costs a read and a write, so a full
+ * build of this store ran to roughly 220 calls and failed outright.
+ *
+ * Building in bounded batches fits any plan and does not assume a store size:
+ * a fixed ceiling is exceeded by a large enough store whatever the plan, and
+ * the failure is a search that cannot run at all.
+ */
+export const FILES_INDEXED_PER_SEARCH = 12;
+
+/**
+ * How many neighbouring chunks may be attached to one result.
+ *
+ * A chunk opening with "It" or "They" depends on the one before it, and
+ * returning it alone says nothing. Each attached neighbour is context someone
+ * has to read, so this is small — a result needing more than a couple of them
+ * usually means the file wanted splitting, which the layout rule already asks
+ * for.
+ */
+export const MAXIMUM_SIBLINGS_PER_HIT = 2;
+
+/**
+ * How much of a chunk to show in a result.
+ *
+ * Results are excerpts rather than whole chunks because the point of a wide
+ * result set is to let a reader judge relevance cheaply, then read what looks
+ * promising in full. A hundred full chunks would defeat the purpose of
+ * returning a hundred.
+ */
+export const EXCERPT_CHARACTERS = 240;

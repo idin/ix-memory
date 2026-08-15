@@ -164,6 +164,80 @@ export function workersAiEmbedder(
 }
 
 /**
+ * Credentials for reaching Workers AI without a binding.
+ *
+ * A binding only exists inside the Worker runtime, which makes anything built
+ * on it unrunnable from a terminal or a plain test — and the embedding is the
+ * one number this whole design rests on. Reaching the same models over their
+ * REST API keeps every part of what the server does executable anywhere.
+ */
+export type WorkersAiCredentials = {
+  accountId: string;
+  apiToken: string;
+};
+
+/**
+ * Build an embedder that calls Workers AI over HTTP.
+ *
+ * The same model and pooling as the binding-backed embedder, so vectors from
+ * the two are comparable and an index built by one can be queried by the
+ * other. That equivalence is what makes it a real alternative rather than an
+ * approximation for testing.
+ *
+ * @param credentials - Account and token with Workers AI access.
+ * @param options.usageSink - Where consumption is recorded.
+ * @param options.trigger - What caused these calls, for attribution.
+ * @param options.now - Clock, injected so timestamps are testable.
+ * @returns A function from texts to vectors.
+ */
+export function restWorkersAiEmbedder(
+  credentials: WorkersAiCredentials,
+  options: { usageSink: UsageSink; trigger: string; now: () => number },
+): Embedder {
+  const ai: WorkersAi = {
+    async run(model: string, inputs: { text: string[]; pooling?: string }) {
+      const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}`
+          + `/ai/run/${model}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${credentials.apiToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(inputs),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Workers AI returned ${response.status}: ${await response.text()}`,
+        );
+      }
+
+      // The REST API wraps what the binding returns directly, so unwrapping
+      // here keeps both paths returning the same shape to their caller.
+      const body = (await response.json()) as {
+        result?: { data?: number[][] };
+        success?: boolean;
+        errors?: { message?: string }[];
+      };
+
+      if (body.success === false) {
+        const reasons = (body.errors ?? [])
+          .map((error) => error.message ?? "unknown")
+          .join("; ");
+        throw new Error(`Workers AI reported failure: ${reasons}`);
+      }
+
+      return { data: body.result?.data };
+    },
+  };
+
+  return workersAiEmbedder(ai, options);
+}
+
+/**
  * Cosine similarity between two vectors.
  *
  * Note what this cannot tell you: two vectors from different models, or from

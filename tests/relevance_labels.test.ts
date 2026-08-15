@@ -7,7 +7,7 @@ import {
   recordCandidates,
   type CandidateRecord,
 } from "../src/relevance_labels";
-import type { SearchFeatures } from "../src/hybrid_search";
+import type { SearchFeatures } from "../src/search_cascade";
 
 /**
  * The invariant these tests exist for: nothing can be recorded as irrelevant
@@ -26,8 +26,6 @@ const FEATURES: SearchFeatures = {
   contains: 1,
   fuzzy: 0.9,
   cosine: 0.81,
-  lexicalRank: 1,
-  semanticRank: 2,
 };
 
 function candidates(count: number): CandidateRecord[] {
