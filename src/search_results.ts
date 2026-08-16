@@ -69,6 +69,15 @@ export type SearchContext = {
   searched: MemoryChunk[];
   /** True when the caller asked to include resolved work. */
   includeDeep: boolean;
+  /**
+   * Set when the index build that produced these results is not finished —
+   * prefixed with `PARTIAL_INDEX_PREFIX` from search_memory.ts so this
+   * function does not need to import it just to compare against it; the
+   * caller has already decided whether the reason is a caveat or merely
+   * informational and passes only the caveat case here. Null when the index
+   * is caught up.
+   */
+  indexReason: string | null;
 };
 
 /**
@@ -86,7 +95,12 @@ export function describeSearchResults(
 
   if (results.length === 0) {
     lines.push(`Nothing in the store matched "${context.query}".`);
-    if (!context.semanticAvailable) {
+    if (context.indexReason) {
+      // The strongest possible case of "not found does not mean absent":
+      // the index itself is not finished, so this empty result may simply
+      // be a file that has not been indexed yet, not a fact the store lacks.
+      lines.push("", context.indexReason);
+    } else if (!context.semanticAvailable) {
       // The distinction that stops a confident wrong "no": without semantic
       // search, a query worded differently from the store finds nothing even
       // when the fact is there. "Canine" does not reach "toy poodle".
@@ -118,6 +132,12 @@ export function describeSearchResults(
       + "looks relevant; the rest is the cost of not missing anything.",
     "",
   );
+
+  if (context.indexReason) {
+    // Before the results, not after: a caveat that only a reader who
+    // scrolls to the end will see is a caveat that gets skipped.
+    lines.push(context.indexReason, "");
+  }
 
   results.forEach((result, index) => {
     const heading = result.chunk.headingPath.join(" > ");

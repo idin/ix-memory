@@ -45,6 +45,7 @@ const CONTEXT = {
   semanticAvailable: true,
   searched: [chunk()],
   includeDeep: false,
+  indexReason: null,
 };
 
 describe("finding nothing", () => {
@@ -68,6 +69,20 @@ describe("finding nothing", () => {
 
   test("the query is quoted back", () => {
     expect(describeSearchResults([], CONTEXT)).toContain('"poodle"');
+  });
+
+  test("a partial index is reported instead of the usual absence message", () => {
+    // The strongest case of "not found does not mean absent": an empty
+    // result from an incomplete index may simply be an unindexed file, not
+    // a fact the store lacks. This takes priority over the semantic-search
+    // caveat, since an incomplete index is the more specific, more
+    // actionable explanation.
+    const text = describeSearchResults([], {
+      ...CONTEXT,
+      indexReason: "PARTIAL INDEX: Indexed 12 of 114 files so far.",
+    });
+    expect(text).toContain("PARTIAL INDEX: Indexed 12 of 114 files so far.");
+    expect(text).not.toContain("most likely does not hold this");
   });
 });
 
@@ -213,5 +228,26 @@ describe("what was not searched is reported", () => {
       ],
     });
     expect(text).not.toMatch(/further file/);
+  });
+});
+
+describe("a partial index is flagged, not just an empty result", () => {
+  test("the caveat appears before the results, not after everything", () => {
+    // A caveat only a reader who scrolls to the very end would see is a
+    // caveat that gets skipped.
+    const text = describeSearchResults([result()], {
+      ...CONTEXT,
+      indexReason: "PARTIAL INDEX: 3 changed file(s) still to index.",
+    });
+    const caveatIndex = text.indexOf("PARTIAL INDEX");
+    const firstResultIndex = text.indexOf(result().chunk.path);
+    expect(caveatIndex).toBeGreaterThan(-1);
+    expect(caveatIndex).toBeLessThan(firstResultIndex);
+  });
+
+  test("no caveat appears when the index is complete", () => {
+    expect(describeSearchResults([result()], CONTEXT)).not.toContain(
+      "PARTIAL INDEX",
+    );
   });
 });

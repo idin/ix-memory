@@ -7,6 +7,13 @@ import {
 } from "../../src/index_rebuild";
 import { DEFAULT_FUZZY_MINIMUM_SCORE, searchLexically } from "../../src/lexical_search";
 import { createMemoryFile, deleteMemoryFile } from "../../src/memory_tree";
+import { FILES_INDEXED_PER_SEARCH } from "../../src/search_config";
+import type {
+  IndexedChunk,
+  IndexIdentity,
+  SearchIndexStore,
+} from "../../src/search_index";
+import { advanceIndexBuild } from "../../src/search_memory";
 import { readWholeStore } from "../../src/store_read";
 import { eventually, resetSandbox, sandboxConfig } from "./sandbox";
 
@@ -205,5 +212,138 @@ describe("searching what was actually read", () => {
     expect(
       searchLexically(chunks, "xylophone quarterly dividend", { fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE }),
     ).toEqual([]);
+  });
+});
+
+/**
+ * An in-memory SearchIndexStore, for exercising advanceIndexBuild against
+ * real GitHub reads without needing a D1 binding — which this project's
+ * Node environment does not have. Keyed the same way the deployment's D1
+ * implementation keys its tables (commit+model+pooling+path), so behavior
+ * here is not an accident of a different design.
+ */
+function memoryIndexStore(): SearchIndexStore {
+  const rows = new Map<string, IndexedChunk[]>();
+  const builtCommits = new Map<string, string>();
+
+  const rowKey = (identity: IndexIdentity, path: string) =>
+    `${identity.commitSha}|${identity.model}|${identity.pooling}|${path}`;
+  const commitKey = (identity: Omit<IndexIdentity, "commitSha">) =>
+    `${identity.model}|${identity.pooling}`;
+
+  return {
+    async load(identity) {
+      const prefix = `${identity.commitSha}|${identity.model}|${identity.pooling}|`;
+      return [...rows.entries()]
+        .filter(([key]) => key.startsWith(prefix))
+        .flatMap(([, chunks]) => chunks);
+    },
+    async replaceFile(identity, path, chunks) {
+      rows.set(rowKey(identity, path), chunks);
+    },
+    async removeFile(identity, path) {
+      rows.delete(rowKey(identity, path));
+    },
+    async carryForward({ from, to, exceptPaths }) {
+      const exceptSet = new Set(exceptPaths);
+      const fromPrefix = `${from.commitSha}|${from.model}|${from.pooling}|`;
+      for (const [key, chunks] of rows) {
+        if (!key.startsWith(fromPrefix)) {
+          continue;
+        }
+        const path = key.slice(fromPrefix.length);
+        if (exceptSet.has(path)) {
+          continue;
+        }
+        rows.set(rowKey(to, path), chunks);
+      }
+    },
+    async builtCommit(identity) {
+      return builtCommits.get(commitKey(identity)) ?? null;
+    },
+    async recordBuiltCommit(identity) {
+      builtCommits.set(commitKey(identity), identity.commitSha);
+    },
+    async discardOtherCommits(identity) {
+      // Delete every row sharing this identity's model and pooling but not
+      // its commit — the same scope d1_search_index.ts deletes within.
+      const keepPrefix = `${identity.commitSha}|${identity.model}|${identity.pooling}|`;
+      const sameModelPooling = `|${identity.model}|${identity.pooling}|`;
+      for (const key of [...rows.keys()]) {
+        const [keyCommitSha] = key.split("|");
+        if (
+          key.includes(sameModelPooling)
+          && !key.startsWith(keepPrefix)
+          && keyCommitSha !== identity.commitSha
+        ) {
+          rows.delete(key);
+        }
+      }
+    },
+  };
+}
+
+describe("resuming a build across several calls", () => {
+  test("advanceIndexBuild finishes without a search, over enough files to need two batches", async () => {
+    // FILES_INDEXED_PER_SEARCH files are indexed per call, so more than that
+    // many eligible files forces at least two calls to reach completion —
+    // the exact shape an alarm-driven build goes through, with no
+    // searchMemory call anywhere in this loop.
+    const extraFiles = FILES_INDEXED_PER_SEARCH + 1;
+    for (let index = 0; index < extraFiles; index += 1) {
+      await createMemoryFile(
+        config,
+        `ix/memory/facts/resume_check_${index}.md`,
+        `# Resume check ${index}\n\nFile ${index} of a batch that forces a `
+          + "multi-call index build.\n",
+        `test: create file ${index} of ${extraFiles} to force two batches`,
+      );
+    }
+
+    const store = memoryIndexStore();
+    // No embedder: this proves the batching and resume mechanism itself,
+    // independent of whether Workers AI is reachable from this test run.
+    const embed = null;
+
+    await eventually(async () => {
+      const files = await readWholeStore(config);
+      expect(files.length).toBeGreaterThan(FILES_INDEXED_PER_SEARCH);
+    });
+
+    const first = await advanceIndexBuild(config, store, embed);
+    expect(first.complete).toBe(false);
+    expect(first.reason).toContain("PARTIAL INDEX");
+
+    const head = await readHeadCommit(config);
+    const afterFirst = await store.load({
+      commitSha: head,
+      model: "@cf/baai/bge-base-en-v1.5",
+      pooling: "cls",
+    });
+    expect(afterFirst.length).toBeGreaterThan(0);
+
+    // Keep calling — no searchMemory anywhere in this loop — until the
+    // build reports itself complete. This is the mechanical proof that an
+    // alarm calling advanceIndexBuild on its own, with nothing else
+    // driving it, would finish the job.
+    let outcome = first;
+    let iterations = 0;
+    while (!outcome.complete && iterations < 20) {
+      outcome = await advanceIndexBuild(config, store, embed);
+      iterations += 1;
+    }
+
+    expect(outcome.complete).toBe(true);
+    // A finished full build still carries an informational reason ("Index
+    // complete: N files.") — only the up_to_date path reports null. What
+    // matters here is that it is never the PARTIAL INDEX caveat.
+    expect(outcome.reason).not.toContain("PARTIAL INDEX");
+
+    const finalHead = await readHeadCommit(config);
+    const built = await store.builtCommit({
+      model: "@cf/baai/bge-base-en-v1.5",
+      pooling: "cls",
+    });
+    expect(built).toBe(finalHead);
   });
 });

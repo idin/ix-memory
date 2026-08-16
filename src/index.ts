@@ -53,8 +53,14 @@ import {
   type SearchIndexStore,
 } from "./search_index";
 import type { Embedder } from "./embeddings";
-import { DEFAULT_INCLUDE_DEEP, searchMemory } from "./search_memory";
 import {
+  DEFAULT_INCLUDE_DEEP,
+  PARTIAL_INDEX_PREFIX,
+  advanceIndexBuild,
+  searchMemory,
+} from "./search_memory";
+import {
+  ALARM_RETRY_DELAY_SECONDS,
   DEFAULT_SEARCH_QUOTAS,
   type SearchQuotas,
 } from "./search_config";
@@ -235,6 +241,28 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
     this.registerMessageTools();
     this.registerDerivedTools();
     this.registerSearchTool();
+    await this.continueIndexBuild();
+  }
+
+  /**
+   * Advance the search index by one batch, then reschedule if more remains.
+   *
+   * Called at the end of `init()` — so on every connection — and again by
+   * itself on each alarm firing, via `this.schedule`. The same batch logic
+   * either way: a build that outlives the search that started it keeps
+   * moving on its own, rather than sitting wherever it stopped until
+   * something happens to search again. Named `keyof this` for `schedule`,
+   * so it must stay a real method, not a private closure.
+   */
+  async continueIndexBuild(): Promise<void> {
+    const { complete } = await advanceIndexBuild(
+      this.repoConfig(),
+      this.searchIndex,
+      this.embedder(),
+    );
+    if (!complete) {
+      await this.schedule(ALARM_RETRY_DELAY_SECONDS, "continueIndexBuild");
+    }
   }
 
   /**
@@ -331,17 +359,27 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
           Date.now(),
         );
 
+        // Only a reason that says the index is incomplete goes to the
+        // reader as a caveat about these results. "Index complete: N files."
+        // is also non-null but is informational, not a warning — surfaced
+        // separately below, not folded into indexReason, so it never reads
+        // as though these results might be missing something.
+        const isPartial = outcome.indexReason?.startsWith(PARTIAL_INDEX_PREFIX)
+          ?? false;
+
         const described = describeSearchResults(outcome.results, {
           query,
           semanticAvailable: outcome.semanticAvailable,
           searched: outcome.searched,
           includeDeep: include_resolved ?? DEFAULT_INCLUDE_DEEP,
+          indexReason: isPartial ? outcome.indexReason : null,
         });
 
-        // A full rebuild is worth mentioning: it means this search paid for
-        // indexing the whole store, and the next one will not.
+        // A completed full rebuild is worth mentioning even though it is not
+        // a caveat: it means this search paid for indexing the whole store,
+        // and the next one will not.
         const note =
-          outcome.indexMode === "full" && outcome.indexReason
+          !isPartial && outcome.indexMode === "full" && outcome.indexReason
             ? `\n\n(${outcome.indexReason})`
             : "";
 

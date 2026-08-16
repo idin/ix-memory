@@ -168,6 +168,18 @@ export const MINIMUM_FUZZY_TOKEN_LENGTH = 4;
 export const FILES_INDEXED_PER_SEARCH = 12;
 
 /**
+ * How long to wait before an alarm continues an incomplete index build.
+ *
+ * Short enough that a large store finishes soon after the search that
+ * started it, long enough that a very large store does not stack many small
+ * Worker invocations back to back for no benefit. A Durable Object alarm
+ * gets its own fresh subrequest budget on each firing, so the constraint
+ * here is pacing, not the subrequest limit `FILES_INDEXED_PER_SEARCH`
+ * already exists to respect.
+ */
+export const ALARM_RETRY_DELAY_SECONDS = 5;
+
+/**
  * How many neighbouring chunks may be attached to one result.
  *
  * A chunk opening with "It" or "They" depends on the one before it, and

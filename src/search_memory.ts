@@ -58,6 +58,17 @@ import {
 export const DEFAULT_INCLUDE_DEEP = false;
 
 /**
+ * Marks an index reason that means "results below may be incomplete",
+ * distinct from an informational reason such as "Index complete: N files."
+ * that is also non-null but not a caveat. Callers that decide whether to
+ * flag a response can check for this prefix rather than re-deriving
+ * completeness from `indexMode` alone, which drops incremental partial
+ * builds on the floor — they keep `mode: "incremental"` the same as a
+ * complete one.
+ */
+export const PARTIAL_INDEX_PREFIX = "PARTIAL INDEX: ";
+
+/**
  * List the store, then fetch text for only a bounded slice of it.
  *
  * Listing is one or two requests regardless of store size; fetching text is
@@ -173,11 +184,12 @@ async function currentChunks(
         indexed: await store.load(identity),
         mode: plan.mode,
         reason:
-          `Indexed ${alreadyIndexed.size + batch.length} of `
-          + `${alreadyIndexed.size + totalEligible} files so far. A Worker `
-          + `can only make so many calls per request, so the index is built `
-          + `across several searches. Results below cover what is indexed; `
-          + `search again to continue — ${stillMissing} file(s) to go.`,
+          `${PARTIAL_INDEX_PREFIX}Indexed ${alreadyIndexed.size + batch.length} `
+          + `of ${alreadyIndexed.size + totalEligible} files so far. A `
+          + `Worker can only make so many calls per request, so the index `
+          + `is built across several searches — an alarm continues it `
+          + `automatically, or search again to continue — `
+          + `${stillMissing} file(s) to go.`,
       };
     }
 
@@ -252,7 +264,8 @@ async function currentChunks(
       indexed: await store.load(identity),
       mode: plan.mode,
       reason:
-        `${unprocessed} changed file(s) still to index. Search again to `
+        `${PARTIAL_INDEX_PREFIX}${unprocessed} changed file(s) still to `
+        + "index. An alarm continues it automatically, or search again to "
         + "continue.",
     };
   }
@@ -260,6 +273,51 @@ async function currentChunks(
   await store.recordBuiltCommit(identity);
   await store.discardOtherCommits(identity);
   return { indexed: await store.load(identity), mode: plan.mode, reason: null };
+}
+
+/**
+ * Decide whether one batch finished the build, from what it reported.
+ *
+ * Pure, and separated from `advanceIndexBuild` so this decision — the part
+ * an alarm actually needs to know, "keep going or stop" — is testable
+ * without a network call. `mode === "up_to_date"` is its own case rather
+ * than folded into the prefix check because it carries no reason at all,
+ * complete by having had nothing to do.
+ *
+ * @param outcome - What one batch call reported.
+ * @returns Whether the index is now complete, and why not when it is not.
+ */
+export function buildProgress(
+  outcome: { mode: RebuildMode; reason: string | null },
+): { complete: boolean; reason: string | null } {
+  if (outcome.mode === "up_to_date") {
+    return { complete: true, reason: null };
+  }
+  const complete =
+    outcome.reason === null || !outcome.reason.startsWith(PARTIAL_INDEX_PREFIX);
+  return { complete, reason: outcome.reason };
+}
+
+/**
+ * Advance the index by one batch, without running a search.
+ *
+ * The same batching `currentChunks` already does for a search call, exposed
+ * on its own so something other than a search — a Durable Object alarm, in
+ * particular — can drive an incomplete build forward. Reuses `currentChunks`
+ * rather than duplicating its branches, so there is exactly one place that
+ * decides what a batch does.
+ *
+ * @param config - Where the memory lives.
+ * @param store - Where chunks and vectors are kept.
+ * @param embed - How to embed, or null when unavailable.
+ * @returns Whether the index is now complete, and why not when it is not.
+ */
+export async function advanceIndexBuild(
+  config: MemoryRepoConfig,
+  store: SearchIndexStore,
+  embed: Embedder | null,
+): Promise<{ complete: boolean; reason: string | null }> {
+  return buildProgress(await currentChunks(config, store, embed));
 }
 
 /**
