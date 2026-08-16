@@ -40,11 +40,11 @@ import {
 import { searchLexically } from "./lexical_search";
 import type { MemoryRepoConfig } from "./memory_repo";
 import {
-  hasPersistentIndex,
-  type IndexIdentity,
-  type IndexedChunk,
-  type SearchIndexStore,
-} from "./search_index";
+  hasPersistentMemoryIndex,
+  type MemoryIndex,
+  type MemoryIndexChunk,
+  type MemoryIndexIdentity,
+} from "./memory_index";
 import { attachSiblings } from "./sibling_chunks";
 import type { ExpandedHit } from "./sibling_chunks";
 import {
@@ -121,14 +121,14 @@ export type SearchOutcome = {
  */
 async function currentChunks(
   config: MemoryRepoConfig,
-  store: SearchIndexStore,
+  index: MemoryIndex,
   embed: Embedder | null,
 ): Promise<{
-  indexed: IndexedChunk[];
+  indexed: MemoryIndexChunk[];
   mode: RebuildMode;
   reason: string | null;
 }> {
-  if (!hasPersistentIndex(store)) {
+  if (!hasPersistentMemoryIndex(index)) {
     const files = await readWholeStore(config);
     return {
       indexed: files
@@ -140,26 +140,26 @@ async function currentChunks(
   }
 
   const headSha = await readHeadCommit(config);
-  const identity: IndexIdentity = {
+  const identity: MemoryIndexIdentity = {
     commitSha: headSha,
     model: EMBEDDING_MODEL,
     pooling: EMBEDDING_POOLING,
   };
-  const builtSha = await store.builtCommit({
+  const builtSha = await index.builtCommit({
     model: EMBEDDING_MODEL,
     pooling: EMBEDDING_POOLING,
   });
   const plan = await planRebuild(config, builtSha, headSha);
 
   if (plan.mode === "up_to_date") {
-    return { indexed: await store.load(identity), mode: plan.mode, reason: null };
+    return { indexed: await index.load(identity), mode: plan.mode, reason: null };
   }
 
   if (plan.mode === "full") {
     // What is already indexed at this commit, so a resumed build picks up
     // where the previous search stopped rather than starting again.
     const alreadyIndexed = new Set(
-      (await store.load(identity)).map((entry) => entry.chunk.path),
+      (await index.load(identity)).map((entry) => entry.chunk.path),
     );
     const { batch, totalEligible } = await readBoundedBatch(config, {
       exclude: alreadyIndexed,
@@ -171,7 +171,7 @@ async function currentChunks(
       const embedded = embed
         ? await embedChunks(chunks, embed)
         : chunks.map((chunk) => ({ chunk, vector: null }));
-      await store.replaceFile(identity, file.path, embedded);
+      await index.replaceFile(identity, file.path, embedded);
     }
 
     const stillMissing = totalEligible - batch.length;
@@ -181,7 +181,7 @@ async function currentChunks(
       // every later search skip the rest — a permanently partial index
       // reporting itself as complete.
       return {
-        indexed: await store.load(identity),
+        indexed: await index.load(identity),
         mode: plan.mode,
         reason:
           `${PARTIAL_INDEX_PREFIX}Indexed ${alreadyIndexed.size + batch.length} `
@@ -196,10 +196,10 @@ async function currentChunks(
     // Written after every chunk has landed. A crash before this leaves the
     // previous sha and the next run redoes the work; the opposite order would
     // claim a build that never finished.
-    await store.recordBuiltCommit(identity);
-    await store.discardOtherCommits(identity);
+    await index.recordBuiltCommit(identity);
+    await index.discardOtherCommits(identity);
     return {
-      indexed: await store.load(identity),
+      indexed: await index.load(identity),
       mode: plan.mode,
       reason:
         `Index complete: ${alreadyIndexed.size + batch.length} files.`,
@@ -216,7 +216,7 @@ async function currentChunks(
   // one.
   if (builtSha) {
     const changedPaths = new Set(plan.changes.map((change) => change.path));
-    await store.carryForward({
+    await index.carryForward({
       from: {
         commitSha: builtSha,
         model: EMBEDDING_MODEL,
@@ -244,7 +244,7 @@ async function currentChunks(
   );
   for (const change of changesThisRound) {
     if (change.kind === "delete") {
-      await store.removeFile(identity, change.path);
+      await index.removeFile(identity, change.path);
       continue;
     }
     const file = byPath.get(change.path);
@@ -255,13 +255,13 @@ async function currentChunks(
     const embedded = embed
       ? await embedChunks(chunks, embed)
       : chunks.map((chunk) => ({ chunk, vector: null }));
-    await store.replaceFile(identity, change.path, embedded);
+    await index.replaceFile(identity, change.path, embedded);
   }
 
   const unprocessed = plan.changes.length - FILES_INDEXED_PER_SEARCH;
   if (unprocessed > 0) {
     return {
-      indexed: await store.load(identity),
+      indexed: await index.load(identity),
       mode: plan.mode,
       reason:
         `${PARTIAL_INDEX_PREFIX}${unprocessed} changed file(s) still to `
@@ -270,9 +270,9 @@ async function currentChunks(
     };
   }
 
-  await store.recordBuiltCommit(identity);
-  await store.discardOtherCommits(identity);
-  return { indexed: await store.load(identity), mode: plan.mode, reason: null };
+  await index.recordBuiltCommit(identity);
+  await index.discardOtherCommits(identity);
+  return { indexed: await index.load(identity), mode: plan.mode, reason: null };
 }
 
 /**
@@ -308,34 +308,34 @@ export function buildProgress(
  * decides what a batch does.
  *
  * @param config - Where the memory lives.
- * @param store - Where chunks and vectors are kept.
+ * @param index - Where chunks and vectors are kept.
  * @param embed - How to embed, or null when unavailable.
  * @returns Whether the index is now complete, and why not when it is not.
  */
 export async function advanceIndexBuild(
   config: MemoryRepoConfig,
-  store: SearchIndexStore,
+  index: MemoryIndex,
   embed: Embedder | null,
 ): Promise<{ complete: boolean; reason: string | null }> {
-  return buildProgress(await currentChunks(config, store, embed));
+  return buildProgress(await currentChunks(config, index, embed));
 }
 
 /**
  * Search the memory store.
  *
  * @param config - Where the memory lives.
- * @param store - Where chunks and vectors are kept.
+ * @param index - Where chunks and vectors are kept.
  * @param embed - How to embed, or null when unavailable.
  * @param options - The query and what to return.
  * @returns Results, and what the search could and could not see.
  */
 export async function searchMemory(
   config: MemoryRepoConfig,
-  store: SearchIndexStore,
+  index: MemoryIndex,
   embed: Embedder | null,
   options: SearchOptions,
 ): Promise<SearchOutcome> {
-  const { indexed, mode, reason } = await currentChunks(config, store, embed);
+  const { indexed, mode, reason } = await currentChunks(config, index, embed);
 
   const visiblePaths = new Set(
     applyDepth(

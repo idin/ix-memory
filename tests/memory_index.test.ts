@@ -1,13 +1,13 @@
 import { describe, expect, test } from "vitest";
 
 import {
-  hasPersistentIndex,
-  noOpSearchIndexStore,
+  hasPersistentMemoryIndex,
+  noOpMemoryIndex,
   packChunk,
   packVector,
   unpackChunkLists,
   unpackVector,
-} from "../src/search_index";
+} from "../src/memory_index";
 import { chunk } from "./chunk_fixture";
 
 /**
@@ -98,10 +98,10 @@ describe("chunk lists survive storage", () => {
   });
 });
 
-describe("the default store", () => {
+describe("the default memory index", () => {
   test("reads empty", async () => {
     expect(
-      await noOpSearchIndexStore.load({
+      await noOpMemoryIndex.load({
         commitSha: "abc",
         model: "m",
         pooling: "mean",
@@ -111,14 +111,14 @@ describe("the default store", () => {
 
   test("reports no previous build, which means a full one", async () => {
     expect(
-      await noOpSearchIndexStore.builtCommit({ model: "m", pooling: "mean" }),
+      await noOpMemoryIndex.builtCommit({ model: "m", pooling: "mean" }),
     ).toBeNull();
   });
 
   test("writes are discarded without failing", async () => {
     // A deployment without a database still works; it simply keeps nothing.
     await expect(
-      noOpSearchIndexStore.replaceFile(
+      noOpMemoryIndex.replaceFile(
         { commitSha: "abc", model: "m", pooling: "mean" },
         "ix/memory/facts/x.md",
         [{ chunk: chunk(), vector: null }],
@@ -128,7 +128,7 @@ describe("the default store", () => {
 
   test("carrying forward is a no-op rather than an error", async () => {
     await expect(
-      noOpSearchIndexStore.carryForward({
+      noOpMemoryIndex.carryForward({
         from: { commitSha: "old", model: "m", pooling: "mean" },
         to: { commitSha: "new", model: "m", pooling: "mean" },
         exceptPaths: ["ix/memory/facts/changed.md"],
@@ -139,12 +139,12 @@ describe("the default store", () => {
   test("is recognisable as absent", () => {
     // So the tool can say semantic search is unavailable rather than
     // returning lexical-only results as though they were the whole answer.
-    expect(hasPersistentIndex(noOpSearchIndexStore)).toBe(false);
+    expect(hasPersistentMemoryIndex(noOpMemoryIndex)).toBe(false);
   });
 
   test("a real store is recognisable as present", () => {
     expect(
-      hasPersistentIndex({ ...noOpSearchIndexStore }),
+      hasPersistentMemoryIndex({ ...noOpMemoryIndex }),
     ).toBe(true);
   });
 });

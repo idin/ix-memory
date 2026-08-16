@@ -49,9 +49,9 @@ import {
 } from "./tool_errors";
 import { noOpUsageSink, type UsageSink } from "./api_usage";
 import {
-  noOpSearchIndexStore,
-  type SearchIndexStore,
-} from "./search_index";
+  noOpMemoryIndex,
+  type MemoryIndex,
+} from "./memory_index";
 import type { Embedder } from "./embeddings";
 import {
   DEFAULT_INCLUDE_DEEP,
@@ -179,7 +179,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
    * the tool says so rather than returning a short answer as if it were the
    * whole one.
    */
-  protected searchIndex: SearchIndexStore = noOpSearchIndexStore;
+  protected memoryIndex: MemoryIndex = noOpMemoryIndex;
 
   /**
    * Where judgments about search results are written.
@@ -257,7 +257,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   async continueIndexBuild(): Promise<void> {
     const { complete } = await advanceIndexBuild(
       this.repoConfig(),
-      this.searchIndex,
+      this.memoryIndex,
       this.embedder(),
     );
     if (!complete) {
@@ -333,7 +333,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
 
         const outcome = await searchMemory(
           this.repoConfig(),
-          this.searchIndex,
+          this.memoryIndex,
           this.embedder(),
           {
             query,
@@ -1252,16 +1252,16 @@ export {
   estimateUsage,
 } from "./api_usage";
 export type {
-  IndexIdentity,
-  IndexedChunk,
-  SearchIndexStore,
-} from "./search_index";
+  MemoryIndex,
+  MemoryIndexChunk,
+  MemoryIndexIdentity,
+} from "./memory_index";
 export {
   packChunk,
   packVector,
   unpackChunkLists,
   unpackVector,
-} from "./search_index";
+} from "./memory_index";
 export type { MemoryChunk } from "./chunking";
 export type { Embedder, WorkersAi } from "./embeddings";
 export {
@@ -1269,7 +1269,7 @@ export {
   EMBEDDING_POOLING,
   workersAiEmbedder,
 } from "./embeddings";
-export { noOpSearchIndexStore } from "./search_index";
+export { noOpMemoryIndex } from "./memory_index";
 export type {
   AgentAssessment,
   CandidateRecord,

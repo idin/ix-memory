@@ -21,8 +21,8 @@
 
 import type { MemoryChunk } from "./chunking";
 
-/** A chunk with its vector, as stored. */
-export type IndexedChunk = {
+/** A chunk with its vector, as stored in the memory index. */
+export type MemoryIndexChunk = {
   chunk: MemoryChunk;
   /** Null when the chunk is stored but not yet embedded. */
   vector: Float32Array | null;
@@ -38,30 +38,31 @@ export type IndexedChunk = {
  * the model and pooling travel with the commit, and a change in any of the
  * three is a different index.
  */
-export type IndexIdentity = {
+export type MemoryIndexIdentity = {
   commitSha: string;
   model: string;
   pooling: string;
 };
 
 /**
- * Somewhere chunks and vectors are kept.
+ * The memory store's search index: chunk text and vectors, derived from the
+ * memory files at one commit.
  *
  * Deliberately small, and deliberately not SQL: a deployment might use D1,
  * Durable Object storage, or something else entirely, and the library should
  * not care which.
  */
-export type SearchIndexStore = {
+export type MemoryIndex = {
   /** Read every chunk for an identity, with vectors where they exist. */
-  load(identity: IndexIdentity): Promise<IndexedChunk[]>;
+  load(identity: MemoryIndexIdentity): Promise<MemoryIndexChunk[]>;
   /** Replace every chunk for one file. Delete-then-insert, not update. */
   replaceFile(
-    identity: IndexIdentity,
+    identity: MemoryIndexIdentity,
     path: string,
-    chunks: IndexedChunk[],
+    chunks: MemoryIndexChunk[],
   ): Promise<void>;
   /** Remove every chunk for one file. */
-  removeFile(identity: IndexIdentity, path: string): Promise<void>;
+  removeFile(identity: MemoryIndexIdentity, path: string): Promise<void>;
   /**
    * Copy one commit's rows to another, skipping the paths that changed.
    *
@@ -71,27 +72,29 @@ export type SearchIndexStore = {
    * nearly the price of a full rebuild to avoid one.
    */
   carryForward(options: {
-    from: IndexIdentity;
-    to: IndexIdentity;
+    from: MemoryIndexIdentity;
+    to: MemoryIndexIdentity;
     exceptPaths: string[];
   }): Promise<void>;
 
   /** Which commit this identity was last fully built from, if any. */
-  builtCommit(identity: Omit<IndexIdentity, "commitSha">): Promise<string | null>;
+  builtCommit(
+    identity: Omit<MemoryIndexIdentity, "commitSha">,
+  ): Promise<string | null>;
   /** Record that a build finished. Called last, deliberately. */
-  recordBuiltCommit(identity: IndexIdentity): Promise<void>;
+  recordBuiltCommit(identity: MemoryIndexIdentity): Promise<void>;
   /** Drop everything for commits other than the one given. */
-  discardOtherCommits(identity: IndexIdentity): Promise<void>;
+  discardOtherCommits(identity: MemoryIndexIdentity): Promise<void>;
 };
 
 /**
- * The store used when a deployment provides none.
+ * The memory index used when a deployment provides none.
  *
  * Reads empty and discards writes, so every search is a fresh lexical-only
  * search. Correct, and slower than it needs to be, which is the right
  * trade for a library that cannot assume infrastructure.
  */
-export const noOpSearchIndexStore: SearchIndexStore = {
+export const noOpMemoryIndex: MemoryIndex = {
   load: async () => [],
   replaceFile: async () => {},
   removeFile: async () => {},
@@ -102,13 +105,13 @@ export const noOpSearchIndexStore: SearchIndexStore = {
 };
 
 /**
- * Whether an index store is real.
+ * Whether a memory index is real.
  *
  * Used to tell the caller that semantic search is unavailable, rather than
  * returning lexical-only results as though they were the whole answer.
  */
-export function hasPersistentIndex(store: SearchIndexStore): boolean {
-  return store !== noOpSearchIndexStore;
+export function hasPersistentMemoryIndex(index: MemoryIndex): boolean {
+  return index !== noOpMemoryIndex;
 }
 
 /**

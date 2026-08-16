@@ -9,10 +9,10 @@ import { DEFAULT_FUZZY_MINIMUM_SCORE, searchLexically } from "../../src/lexical_
 import { createMemoryFile, deleteMemoryFile } from "../../src/memory_tree";
 import { FILES_INDEXED_PER_SEARCH } from "../../src/search_config";
 import type {
-  IndexedChunk,
-  IndexIdentity,
-  SearchIndexStore,
-} from "../../src/search_index";
+  MemoryIndex,
+  MemoryIndexChunk,
+  MemoryIndexIdentity,
+} from "../../src/memory_index";
 import { advanceIndexBuild } from "../../src/search_memory";
 import { readWholeStore } from "../../src/store_read";
 import { eventually, resetSandbox, sandboxConfig } from "./sandbox";
@@ -216,19 +216,19 @@ describe("searching what was actually read", () => {
 });
 
 /**
- * An in-memory SearchIndexStore, for exercising advanceIndexBuild against
- * real GitHub reads without needing a D1 binding — which this project's
- * Node environment does not have. Keyed the same way the deployment's D1
+ * An in-memory MemoryIndex, for exercising advanceIndexBuild against real
+ * GitHub reads without needing a D1 binding — which this project's Node
+ * environment does not have. Keyed the same way the deployment's D1
  * implementation keys its tables (commit+model+pooling+path), so behavior
  * here is not an accident of a different design.
  */
-function memoryIndexStore(): SearchIndexStore {
-  const rows = new Map<string, IndexedChunk[]>();
+function inProcessMemoryIndex(): MemoryIndex {
+  const rows = new Map<string, MemoryIndexChunk[]>();
   const builtCommits = new Map<string, string>();
 
-  const rowKey = (identity: IndexIdentity, path: string) =>
+  const rowKey = (identity: MemoryIndexIdentity, path: string) =>
     `${identity.commitSha}|${identity.model}|${identity.pooling}|${path}`;
-  const commitKey = (identity: Omit<IndexIdentity, "commitSha">) =>
+  const commitKey = (identity: Omit<MemoryIndexIdentity, "commitSha">) =>
     `${identity.model}|${identity.pooling}`;
 
   return {
@@ -266,7 +266,7 @@ function memoryIndexStore(): SearchIndexStore {
     },
     async discardOtherCommits(identity) {
       // Delete every row sharing this identity's model and pooling but not
-      // its commit — the same scope d1_search_index.ts deletes within.
+      // its commit — the same scope d1_memory_index.ts deletes within.
       const keepPrefix = `${identity.commitSha}|${identity.model}|${identity.pooling}|`;
       const sameModelPooling = `|${identity.model}|${identity.pooling}|`;
       for (const key of [...rows.keys()]) {
@@ -300,7 +300,7 @@ describe("resuming a build across several calls", () => {
       );
     }
 
-    const store = memoryIndexStore();
+    const index = inProcessMemoryIndex();
     // No embedder: this proves the batching and resume mechanism itself,
     // independent of whether Workers AI is reachable from this test run.
     const embed = null;
@@ -310,12 +310,12 @@ describe("resuming a build across several calls", () => {
       expect(files.length).toBeGreaterThan(FILES_INDEXED_PER_SEARCH);
     });
 
-    const first = await advanceIndexBuild(config, store, embed);
+    const first = await advanceIndexBuild(config, index, embed);
     expect(first.complete).toBe(false);
     expect(first.reason).toContain("PARTIAL INDEX");
 
     const head = await readHeadCommit(config);
-    const afterFirst = await store.load({
+    const afterFirst = await index.load({
       commitSha: head,
       model: "@cf/baai/bge-base-en-v1.5",
       pooling: "cls",
@@ -329,7 +329,7 @@ describe("resuming a build across several calls", () => {
     let outcome = first;
     let iterations = 0;
     while (!outcome.complete && iterations < 20) {
-      outcome = await advanceIndexBuild(config, store, embed);
+      outcome = await advanceIndexBuild(config, index, embed);
       iterations += 1;
     }
 
@@ -340,7 +340,7 @@ describe("resuming a build across several calls", () => {
     expect(outcome.reason).not.toContain("PARTIAL INDEX");
 
     const finalHead = await readHeadCommit(config);
-    const built = await store.builtCommit({
+    const built = await index.builtCommit({
       model: "@cf/baai/bge-base-en-v1.5",
       pooling: "cls",
     });
