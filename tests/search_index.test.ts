@@ -46,6 +46,19 @@ describe("vectors survive storage exactly", () => {
     expect(packVector(slice).byteLength).toBe(12);
     expect([...unpackVector(packVector(slice))]).toEqual([3, 4, 5]);
   });
+
+  test("a plain array of byte values unpacks the same as its ArrayBuffer", () => {
+    // D1 documents BLOB columns as ArrayBuffer, but some driver versions
+    // return a plain array of byte values instead (cloudflare/workers-sdk
+    // #8642). new Float32Array(bytes) does not error on that shape — it reads
+    // the array as array-like and produces one float per byte, four times too
+    // long, silently. This is the case that broke semantic search: a stored
+    // 768-dimension vector came back reporting length 3072.
+    const vector = new Float32Array([0.1, -0.25, 0.5, 0]);
+    const buffer = packVector(vector);
+    const asPlainArray = [...new Uint8Array(buffer)];
+    expect([...unpackVector(asPlainArray)]).toEqual([...vector]);
+  });
 });
 
 describe("chunk lists survive storage", () => {

@@ -131,11 +131,22 @@ export function packVector(vector: Float32Array): ArrayBuffer {
 /**
  * Unpack a stored vector.
  *
- * @param bytes - What was stored.
+ * D1 documents BLOB columns as coming back as an `ArrayBuffer`, but in
+ * production some driver versions return a plain array of byte values
+ * instead (cloudflare/workers-sdk#8642). `new Float32Array` does not error on
+ * that — it treats the array as array-like and produces one float per byte,
+ * four times too long, silently. Normalising here means every caller gets a
+ * real embedding regardless of which shape the binding handed back, rather
+ * than each one needing to know about a driver bug that has nothing to do
+ * with what they are trying to do.
+ *
+ * @param bytes - What was stored: an `ArrayBuffer`, or a plain array of byte
+ *   values if the D1 binding returned one instead.
  * @returns The embedding.
  */
-export function unpackVector(bytes: ArrayBuffer): Float32Array {
-  return new Float32Array(bytes);
+export function unpackVector(bytes: ArrayBuffer | number[]): Float32Array {
+  const buffer = Array.isArray(bytes) ? new Uint8Array(bytes).buffer : bytes;
+  return new Float32Array(buffer);
 }
 
 /**

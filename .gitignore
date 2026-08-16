@@ -7,6 +7,11 @@
 *.pem
 *.key
 
+# npm auth token, written by `npm config set ... --location project` when
+# publishing locally. Carries a live publish credential — must never be
+# committed.
+.npmrc
+
 # Deployment configuration, which carries account-specific identifiers.
 wrangler.jsonc
 
