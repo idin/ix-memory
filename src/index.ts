@@ -963,7 +963,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
     );
 
     this.registerTool(
-      "gather_tool_failures_and_agent_misjudgements",
+      "gather_tool_failures_and_ai_misjudgements",
       {
         description:
           "Gather evidence for improvements the user might want to make, in "
@@ -976,9 +976,10 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
           + "links to.\n"
           + "tools: which tools keep failing, and whether they fail the same "
           + "way each time.\n"
-          + "rules: which rules are not working, read from the misjudgement "
-          + "log. A pattern recurring after a rule was written to prevent it "
-          + "means that rule failed.\n\n"
+          + "rules: every undigested entry in the misjudgement log, in full, "
+          + "plus findings about which rules are not working — a pattern "
+          + "recurring after a rule was written to prevent it means that "
+          + "rule failed.\n\n"
           + "This tool reads. It changes nothing. Write the proposal as one "
           + "file in future/proposals/ and let the user decide.",
         inputSchema: {
@@ -1002,11 +1003,19 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
 
         if (area === "rules") {
           const material = await gatherDigestMaterial(this.repoConfig());
+          const described =
+            material.entries.length === 0
+              ? "Nothing undigested."
+              : material.entries
+                  .map((entry) => `--- ${entry.path} ---\n${entry.text}`)
+                  .join("\n\n");
           return {
             content: [
               {
                 type: "text",
-                text: describeSuggestionMaterial(surveyRules(material.entries)),
+                text:
+                  `## ${material.entries.length} undigested entries\n\n${described}`
+                  + `\n\n${describeSuggestionMaterial(surveyRules(material.entries))}`,
               },
             ],
           };
@@ -1030,7 +1039,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
     );
 
     this.registerTool(
-      "gather_digest_material",
+      "gather_all_undigested_ai_misjudgements",
       {
         description:
           "Collect the undigested misjudgements so a digest can be PROPOSED. "
