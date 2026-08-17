@@ -963,7 +963,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
     );
 
     this.registerTool(
-      "survey_for_improvements",
+      "gather_tool_failures_and_agent_misjudgements",
       {
         description:
           "Gather evidence for improvements the user might want to make, in "
