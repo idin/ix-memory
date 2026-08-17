@@ -57,7 +57,9 @@ import {
   DEFAULT_INCLUDE_DEEP,
   PARTIAL_INDEX_PREFIX,
   advanceIndexBuild,
+  noOpRawSearchSink,
   searchMemory,
+  type RawSearchSink,
 } from "./search_memory";
 import {
   ALARM_RETRY_DELAY_SECONDS,
@@ -189,6 +191,18 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
    * a search depends on.
    */
   protected relevanceSink: RelevanceSink = noOpRelevanceSink;
+
+  /**
+   * Where the full, pre-cascade candidate round is recorded for every
+   * search — every lexical and semantic candidate, before quotas cut it
+   * down to what a caller sees.
+   *
+   * Overridable so a deployment can inspect what search actually found
+   * against what it actually returned, rather than trusting a description
+   * of the difference. The default discards, and a deployment that never
+   * supplies one loses nothing a search depends on.
+   */
+  protected rawSearchSink: RawSearchSink = noOpRawSearchSink;
 
   /**
    * The candidates from the most recent search, awaiting judgment.
@@ -340,6 +354,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
             quotas,
             includeDeep: include_resolved ?? DEFAULT_INCLUDE_DEEP,
           },
+          this.rawSearchSink,
         );
 
         // Held for a later judgment call rather than recomputed then: the
@@ -1263,7 +1278,15 @@ export {
   unpackVector,
 } from "./memory_index";
 export type { MemoryChunk } from "./chunking";
-export type { Embedder, WorkersAi } from "./embeddings";
+export type { Embedder, SemanticHit, WorkersAi } from "./embeddings";
+export type { LexicalHit, LexicalScores, MatchMethod } from "./lexical_search";
+export type {
+  RawSearchRound,
+  RawSearchSink,
+  SearchOptions,
+  SearchOutcome,
+} from "./search_memory";
+export { noOpRawSearchSink } from "./search_memory";
 export {
   EMBEDDING_MODEL,
   EMBEDDING_POOLING,

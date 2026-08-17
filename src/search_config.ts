@@ -126,20 +126,6 @@ export function cosinePoolSize(
 }
 
 /**
- * The fuzzy score below which a match is not worth considering at all.
- *
- * Deliberately low, and lower than a precision-focused search would use. Its
- * only job is to keep the candidate pool from being filled by chunks scoring
- * near zero; ordering within the pool is what decides who survives, and the
- * quota is what bounds it.
- *
- * Measured on the real store: unrelated queries score 0.00 to 0.58, genuine
- * typos 0.80 to 0.98. This sits below both, so a real match cannot fall under
- * it, which is the property that matters when recall is the goal.
- */
-export const FUZZY_FLOOR = 0.6;
-
-/**
  * The shortest query token worth matching fuzzily.
  *
  * Jaro-Winkler is unreliable below this: with three characters a single

@@ -21,16 +21,6 @@
 import { chunkSearchText, type MemoryChunk } from "./chunking";
 import { bestTokenAlignment } from "./text_similarity";
 
-/**
- * The fuzzy score below which a hit is noise rather than a weak match.
- *
- * Jaro-Winkler is generous with short strings: two unrelated four-letter
- * tokens sharing a first letter can reach the low 0.6s, so a floor below that
- * admits everything and makes the method meaningless. This sits above that
- * band while staying below the ~0.9 a genuine typo scores.
- */
-export const DEFAULT_FUZZY_MINIMUM_SCORE = 0.72;
-
 /** The six ways a chunk can match, all scored for every chunk. */
 export type MatchMethod =
   | "exact"
@@ -154,15 +144,22 @@ function strongestMethod(scores: LexicalScores): MatchMethod {
 /**
  * Score every chunk against a query, keeping those that matched.
  *
+ * No score threshold: a chunk is kept whenever any method scores above
+ * zero. A floor would drop a candidate before the cascade's own sort and
+ * quota ever see it — the same "discarded before it could be ranked"
+ * failure a truncated search index has. Sorting by best score first, and
+ * letting the quota bound what is kept, gets the same freedom from
+ * near-zero noise without that risk: a chunk that would have failed a
+ * floor still sorts near the bottom and falls outside its tier's quota on
+ * its own.
+ *
  * @param chunks - The chunks to search.
  * @param query - What was searched for.
- * @param options - The fuzzy floor, and how many hits to return.
- * @returns Hits, best first.
+ * @returns Hits, best score first.
  */
 export function searchLexically(
   chunks: MemoryChunk[],
   query: string,
-  options: { fuzzyMinimumScore: number },
 ): LexicalHit[] {
   const hits: LexicalHit[] = [];
 
@@ -174,13 +171,7 @@ export function searchLexically(
     const bestMethod = strongestMethod(scores);
     const bestScore = scores[bestMethod];
 
-    const anchored =
-      scores.exact
-      + scores.starts_with
-      + scores.ends_with
-      + scores.contains
-      + scores.contained_by;
-    if (anchored === 0 && scores.fuzzy < options.fuzzyMinimumScore) {
+    if (bestScore <= 0) {
       continue;
     }
 
@@ -194,10 +185,10 @@ export function searchLexically(
     });
   }
 
-  // Deliberately unsorted and uncapped. Ordering and quotas belong to the
-  // cascade, which fills each method's share from what earlier methods did
-  // not claim — sorting by a single best score here would mix the methods
-  // back together and cutting to a limit would discard candidates the
-  // cascade had not yet had the chance to consider.
-  return hits;
+  // Sorted so a caller reading the raw list sees the strongest matches
+  // first. The cascade still re-sorts within each tier by that tier's own
+  // score — this ordering is for anyone using the list directly, and for
+  // keeping near-zero matches away from a quota's cutoff on their own
+  // merit rather than a separate floor.
+  return hits.sort((first, second) => second.bestScore - first.bestScore);
 }

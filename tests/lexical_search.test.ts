@@ -1,11 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { chunkFile } from "../src/chunking";
-import {
-  DEFAULT_FUZZY_MINIMUM_SCORE,
-  scoreLexically,
-  searchLexically,
-} from "../src/lexical_search";
+import { scoreLexically, searchLexically } from "../src/lexical_search";
 import { chunk, storeFile as file } from "./chunk_fixture";
 
 const FRODO = `# Frodo
@@ -30,8 +26,6 @@ const CHUNKS = [
   ...chunkFile(file("other-memory/facts/frodo.md", FRODO)),
   ...chunkFile(file("other-memory/facts/core.md", CORE)),
 ];
-
-const OPTIONS = { fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE };
 
 describe("the four anchored methods", () => {
   test("contains is named from the field's side", () => {
@@ -137,7 +131,7 @@ describe("every method is always scored", () => {
   });
 
   test("a hit reports which method was strongest", () => {
-    const hits = searchLexically(CHUNKS, "Vancouver condo", OPTIONS);
+    const hits = searchLexically(CHUNKS, "Vancouver condo");
     expect(hits[0].bestMethod).toBe("contains");
   });
 
@@ -150,15 +144,14 @@ describe("every method is always scored", () => {
     expect(scores.starts_with).toBe(1);
     expect(scores.contains).toBe(1);
     expect(
-      searchLexically([chunk({ text: "poodle" })], "poodle", OPTIONS)[0]
-        .bestMethod,
+      searchLexically([chunk({ text: "poodle" })], "poodle")[0].bestMethod,
     ).toBe("exact");
   });
 });
 
 describe("searching the store", () => {
   test("a plain word finds the chunk holding it", () => {
-    const hits = searchLexically(CHUNKS, "poodle", OPTIONS);
+    const hits = searchLexically(CHUNKS, "poodle");
     expect(hits.length).toBeGreaterThan(0);
     expect(hits[0].chunk.path).toBe("other-memory/facts/frodo.md");
   });
@@ -166,58 +159,79 @@ describe("searching the store", () => {
   test("a typo still finds it", () => {
     // Nobody types "poddle" on purpose, and a search that returns nothing
     // reads as "not in the store".
-    const hits = searchLexically(CHUNKS, "poddle", OPTIONS);
+    const hits = searchLexically(CHUNKS, "poddle");
     expect(hits.length).toBeGreaterThan(0);
     expect(hits[0].chunk.text).toContain("poodle");
   });
 
   test("a heading in an ancestor is searchable", () => {
     // The chunk's body says nothing about money; its heading path does.
-    const hits = searchLexically(CHUNKS, "Money", OPTIONS);
+    const hits = searchLexically(CHUNKS, "Money");
     expect(hits.some((hit) => hit.chunk.text.includes("Vancouver"))).toBe(true);
   });
 
-  test("an unrelated query returns nothing", () => {
+  test("a query sharing no characters with the store returns nothing", () => {
     // The property that makes an empty result meaningful: it must be possible
     // to genuinely find nothing, or every search "succeeds" and says nothing.
-    expect(searchLexically(CHUNKS, "mortgage refinancing", OPTIONS)).toEqual(
-      [],
-    );
+    // "mortgage refinancing" no longer qualifies for this — without a
+    // minimum-score floor, its honest (if weak) fuzzy overlap with the
+    // fixture text is kept rather than dropped, which is correct: a real,
+    // if low, score belongs to the cascade's quota to judge, not to a floor
+    // that discards it before ranking.
+    expect(searchLexically(CHUNKS, "øæå ØÆÅ")).toEqual([]);
   });
 
-  test("every match is returned, uncapped and unsorted", () => {
-    // Deliberately not ranked or cut here. Ordering and quotas belong to the
-    // cascade, which fills each method's share from what earlier methods did
-    // not claim — sorting by one best score would mix the methods back
-    // together, and cutting to a limit would discard candidates the cascade
-    // had not yet had a chance to consider.
+  test("every match is returned, uncapped, best score first", () => {
+    // Not cut here: the cascade fills each method's share from what earlier
+    // methods did not claim, and cutting to a limit here would discard
+    // candidates the cascade had not yet had a chance to consider.
     //
-    // Recall is the goal: precision is recoverable by whoever reads the
-    // results, and recall is not recoverable by anyone.
-    const hits = searchLexically(CHUNKS, "Idin", OPTIONS);
+    // Sorted, unlike the per-method quota decisions the cascade makes: a
+    // caller reading this list directly should see the strongest matches
+    // first, and a chunk with a weak score naturally sorts near the bottom
+    // rather than being excluded by a separate floor.
+    const hits = searchLexically(CHUNKS, "Idin");
     expect(hits.length).toBeGreaterThan(1);
+    for (let index = 1; index < hits.length; index++) {
+      expect(hits[index - 1].bestScore).toBeGreaterThanOrEqual(
+        hits[index].bestScore,
+      );
+    }
   });
 
   test("a hit says where it matched, for quoting back", () => {
-    const hits = searchLexically(CHUNKS, "Vancouver", OPTIONS);
+    const hits = searchLexically(CHUNKS, "Vancouver");
     expect(hits[0].matchedAt).toBeGreaterThanOrEqual(0);
   });
 
   test("a fuzzy-only hit has no position", () => {
-    const hits = searchLexically(CHUNKS, "poddle", OPTIONS);
+    const hits = searchLexically(CHUNKS, "poddle");
     expect(hits[0].matchedAt).toBeNull();
   });
 });
 
-describe("the fuzzy floor", () => {
-  test("holds back noise", () => {
-    const hits = searchLexically(CHUNKS, "zzzzqqqq", OPTIONS);
+describe("the zero-score filter", () => {
+  test("a chunk with no score at all is excluded", () => {
+    // No minimum-score floor: only a genuine zero across every method drops
+    // a chunk. A query sharing no characters at all with the store scores
+    // zero everywhere, including fuzzy.
+    const hits = searchLexically(CHUNKS, "øæå ØÆÅ");
     expect(hits).toEqual([]);
   });
 
-  test("but an anchored match is never held back by it", () => {
-    // An exact substring is a match whatever the fuzzy score says.
-    const hits = searchLexically(CHUNKS, "2013-05-06", OPTIONS);
+  test("an anchored match is always kept regardless of its fuzzy score", () => {
+    const hits = searchLexically(CHUNKS, "2013-05-06");
     expect(hits.length).toBeGreaterThan(0);
+  });
+
+  test("a weak fuzzy match is kept, not filtered — the quota bounds it later", () => {
+    // "mortgage refinancing" against this fixture is exactly this case: no
+    // anchored match, and a fuzzy score under the old 0.72 floor. That
+    // floor used to drop it before the cascade ever saw it; now it
+    // survives here, and whether it reaches a caller is entirely the
+    // cascade's quota to decide.
+    const scores = scoreLexically("mortgage refinancing", "Idin has a toy poodle");
+    expect(scores.fuzzy).toBeGreaterThan(0);
+    expect(scores.fuzzy).toBeLessThan(0.72);
   });
 });

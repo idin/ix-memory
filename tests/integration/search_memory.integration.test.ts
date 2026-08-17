@@ -5,7 +5,7 @@ import {
   planRebuild,
   readHeadCommit,
 } from "../../src/index_rebuild";
-import { DEFAULT_FUZZY_MINIMUM_SCORE, searchLexically } from "../../src/lexical_search";
+import { searchLexically } from "../../src/lexical_search";
 import { cascadeResults } from "../../src/search_cascade";
 import { createMemoryFile, deleteMemoryFile } from "../../src/memory_tree";
 import { DEFAULT_SEARCH_QUOTAS, FILES_INDEXED_PER_SEARCH } from "../../src/search_config";
@@ -178,7 +178,7 @@ describe("searching what was actually read", () => {
       // any real search actually goes through. Reading searchLexically's
       // hits[0] directly, as this test used to, asserts an ordering the
       // function never promised.
-      const hits = searchLexically(chunks, "Rega Planar", { fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE });
+      const hits = searchLexically(chunks, "Rega Planar");
       expect(hits.length).toBeGreaterThan(0);
       const ranked = cascadeResults(hits, [], DEFAULT_SEARCH_QUOTAS);
       expect(ranked.length).toBeGreaterThan(0);
@@ -202,9 +202,25 @@ describe("searching what was actually read", () => {
     await eventually(async () => {
       const files = await readWholeStore(config);
       const chunks = files.flatMap((file) => chunkFile(file));
-      const hits = searchLexically(chunks, "Technics SL-1200", { fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE });
+      const hits = searchLexically(chunks, "Technics SL-1200");
       const fromThisFile = hits.filter((hit) => hit.chunk.path === path);
-      expect(fromThisFile).toEqual([]);
+      // No anchored match: the superseded text is genuinely absent from
+      // what is searched. A weak fuzzy score can still appear — "Technics
+      // SL-1200" shares enough characters with unrelated words in the
+      // chunk ("turntable", "superseded") to score nonzero on fuzzy
+      // alignment alone — but that is character-level noise, not the
+      // struck-through value being findable, and without a minimum-score
+      // floor it is the cascade's fuzzy quota, not this test, that decides
+      // whether noise like that ever reaches a caller.
+      for (const hit of fromThisFile) {
+        const anchored =
+          hit.scores.exact
+          + hit.scores.starts_with
+          + hit.scores.ends_with
+          + hit.scores.contains
+          + hit.scores.contained_by;
+        expect(anchored).toBe(0);
+      }
 
       // Still recorded, just not as a current fact.
       const chunk = chunks.find((one) => one.path === path);
@@ -212,14 +228,15 @@ describe("searching what was actually read", () => {
     });
   });
 
-  test("a query matching nothing returns nothing", async () => {
+  test("a query sharing no characters with the store returns nothing", async () => {
     // An empty result has to be possible, or every search "succeeds" and the
-    // absence of a fact can never be established.
+    // absence of a fact can never be established. Without a minimum-score
+    // floor, an ordinary English query can score a genuine (if weak) nonzero
+    // fuzzy overlap somewhere in a large real store, so this uses a query
+    // that shares no characters with any real content at all.
     const files = await readWholeStore(config);
     const chunks = files.flatMap((file) => chunkFile(file));
-    expect(
-      searchLexically(chunks, "xylophone quarterly dividend", { fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE }),
-    ).toEqual([]);
+    expect(searchLexically(chunks, "øæå ØÆÅ ñüß")).toEqual([]);
   });
 });
 

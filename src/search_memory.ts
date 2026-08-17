@@ -22,12 +22,12 @@ import {
   embedChunks,
   searchSemantically,
   type Embedder,
+  type SemanticHit,
 } from "./embeddings";
 import { applyDepth } from "./deep_memory";
 import { cascadeResults, type CascadeResult } from "./search_cascade";
 import {
   FILES_INDEXED_PER_SEARCH,
-  FUZZY_FLOOR,
   MAXIMUM_SIBLINGS_PER_HIT,
   cosinePoolSize,
   type SearchQuotas,
@@ -37,7 +37,7 @@ import {
   readHeadCommit,
   type RebuildMode,
 } from "./index_rebuild";
-import { searchLexically } from "./lexical_search";
+import { searchLexically, type LexicalHit } from "./lexical_search";
 import type { MemoryRepoConfig } from "./memory_repo";
 import {
   hasPersistentMemoryIndex,
@@ -100,6 +100,32 @@ export type SearchOptions = {
   quotas: SearchQuotas;
   includeDeep: boolean;
 };
+
+/**
+ * Every candidate a search produced, before the cascade cuts it down by
+ * quota — the round that includes every fuzzy match, every exact match,
+ * everything, not just what a caller ends up seeing.
+ *
+ * Exists so what the cascade discarded is inspectable, not just what it
+ * kept. A quota deciding correctly is not the same claim as a quota
+ * deciding on the right candidates, and the second claim needs the first
+ * round on record to check.
+ */
+export type RawSearchRound = {
+  query: string;
+  /** Every chunk searched, whether or not any method matched it. */
+  chunksSearched: number;
+  /** Every lexical candidate, whatever scored above zero on any method. */
+  lexical: LexicalHit[];
+  /** Every semantic candidate within the pool searchSemantically returned. */
+  semantic: SemanticHit[];
+};
+
+/** Where a raw search round is recorded, before the cascade acts on it. */
+export type RawSearchSink = (round: RawSearchRound) => Promise<void>;
+
+/** The sink used when a deployment supplies none. Discards. */
+export const noOpRawSearchSink: RawSearchSink = async () => {};
 
 export type SearchOutcome = {
   results: ExpandedHit<CascadeResult>[];
@@ -332,6 +358,8 @@ export async function advanceIndexBuild(
  * @param index - Where chunks and vectors are kept.
  * @param embed - How to embed, or null when unavailable.
  * @param options - The query and what to return.
+ * @param rawSearchSink - Where the full, pre-cascade candidate round is
+ *   recorded. Defaults to discarding it.
  * @returns Results, and what the search could and could not see.
  */
 export async function searchMemory(
@@ -339,6 +367,7 @@ export async function searchMemory(
   index: MemoryIndex,
   embed: Embedder | null,
   options: SearchOptions,
+  rawSearchSink: RawSearchSink = noOpRawSearchSink,
 ): Promise<SearchOutcome> {
   const { indexed, mode, reason } = await currentChunks(config, index, embed);
 
@@ -351,11 +380,10 @@ export async function searchMemory(
   const visible = indexed.filter((entry) => visiblePaths.has(entry.chunk.path));
   const chunks = visible.map((entry) => entry.chunk);
 
-  // Every lexical candidate, unsorted and uncapped. Cutting here would
-  // discard candidates the cascade has not yet had the chance to consider.
-  const lexical = searchLexically(chunks, options.query, {
-    fuzzyMinimumScore: FUZZY_FLOOR,
-  });
+  // Every lexical candidate with any score at all, best first. Cutting here
+  // would discard candidates the cascade has not yet had the chance to
+  // consider.
+  const lexical = searchLexically(chunks, options.query);
 
   const exactCount = lexical.filter((hit) => hit.scores.exact > 0).length;
 
@@ -370,6 +398,15 @@ export async function searchMemory(
       limit: cosinePoolSize(options.quotas, exactCount),
     });
   }
+
+  // The full round, before the cascade cuts it down by quota — every
+  // candidate either method found, not just what a caller ends up seeing.
+  await rawSearchSink({
+    query: options.query,
+    chunksSearched: chunks.length,
+    lexical,
+    semantic,
+  });
 
   const selected = cascadeResults(lexical, semantic, options.quotas);
 
