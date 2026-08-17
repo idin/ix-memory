@@ -42,7 +42,7 @@ describe("detecting a dependent chunk", () => {
   test("a chunk opening with a pronoun is flagged", () => {
     const chunks = chunkFile(
       storeFile(
-        "ix/memory/facts/home/455_beach.md",
+        "other-memory/facts/home/455_beach.md",
         "# 455 Beach\n\nProvenance.\n\n## Refinance\n\nThe mortgage was "
           + "refinanced in 2020.\n\n## Transfer\n\nIt went from Scotia to TD "
           + "Bank.\n",
@@ -55,7 +55,7 @@ describe("detecting a dependent chunk", () => {
   test("a self-contained chunk is not", () => {
     const chunks = chunkFile(
       storeFile(
-        "ix/memory/facts/home/455_beach.md",
+        "other-memory/facts/home/455_beach.md",
         "# 455 Beach\n\nProvenance.\n\n## Refinance\n\nThe mortgage was "
           + "refinanced in 2020.\n\n## Rate\n\nThe rate is TD Bank Prime "
           + "minus 0.550%.\n",
@@ -69,7 +69,7 @@ describe("detecting a dependent chunk", () => {
     // A pronoun in the opening chunk refers to the title or to nothing, and
     // either way there is no earlier sibling to fetch.
     const chunks = chunkFile(
-      storeFile("ix/memory/facts/x.md", "# Thing\n\nIt is what it is.\n"),
+      storeFile("other-memory/facts/x.md", "# Thing\n\nIt is what it is.\n"),
     );
     expect(chunks[0].dependsOnPrevious).toBe(false);
   });
@@ -168,9 +168,9 @@ describe("siblingsFor", () => {
 
   test("chunks from other files are never siblings", () => {
     const chunks = [
-      chunk({ path: "ix/memory/facts/a.md", ordinal: 0 }),
+      chunk({ path: "other-memory/facts/a.md", ordinal: 0 }),
       chunk({
-        path: "ix/memory/facts/b.md",
+        path: "other-memory/facts/b.md",
         ordinal: 1,
         text: "It is unrelated.",
         dependsOnPrevious: true,

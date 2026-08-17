@@ -42,7 +42,7 @@ describe("reading the whole store", () => {
 
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
-      expect(file.path.startsWith("ix/memory/")).toBe(true);
+      expect(file.path.startsWith("other-memory/")).toBe(true);
       // The sha is what makes incremental rebuilding possible, and the
       // previous version of this code silently discarded it.
       expect(file.sha).toMatch(/^[0-9a-f]{40}$/);
@@ -54,7 +54,7 @@ describe("reading the whole store", () => {
     // The bug that prompted this: a bare atob returns mojibake for anything
     // multi-byte, and this store is full of em-dashes. Search over corrupted
     // text fails to match words next to them, with nothing reporting an error.
-    const path = "ix/memory/facts/encoding_check.md";
+    const path = "other-memory/facts/encoding_check.md";
     await createMemoryFile(
       config,
       path,
@@ -97,7 +97,7 @@ describe("planning a rebuild from real commits", () => {
 
   test("a created file appears as an upsert", async () => {
     const before = await readHeadCommit(config);
-    const path = "ix/memory/facts/rebuild_check.md";
+    const path = "other-memory/facts/rebuild_check.md";
     await createMemoryFile(
       config,
       path,
@@ -115,7 +115,7 @@ describe("planning a rebuild from real commits", () => {
   });
 
   test("a deleted file appears as a delete", async () => {
-    const path = "ix/memory/facts/delete_check.md";
+    const path = "other-memory/facts/delete_check.md";
     await createMemoryFile(
       config,
       path,
@@ -160,7 +160,7 @@ describe("planning a rebuild from real commits", () => {
 
 describe("searching what was actually read", () => {
   test("a written fact is findable by its own words", async () => {
-    const path = "ix/memory/facts/search_check.md";
+    const path = "other-memory/facts/search_check.md";
     await createMemoryFile(
       config,
       path,
@@ -181,7 +181,7 @@ describe("searching what was actually read", () => {
   test("a superseded value is not findable as current", async () => {
     // The store keeps struck-through values by instruction, and search must
     // not return them as facts. This is the acceptance test for that.
-    const path = "ix/memory/facts/superseded_check.md";
+    const path = "other-memory/facts/superseded_check.md";
     await createMemoryFile(
       config,
       path,
@@ -293,7 +293,7 @@ describe("resuming a build across several calls", () => {
     for (let index = 0; index < extraFiles; index += 1) {
       await createMemoryFile(
         config,
-        `ix/memory/facts/resume_check_${index}.md`,
+        `other-memory/facts/resume_check_${index}.md`,
         `# Resume check ${index}\n\nFile ${index} of a batch that forces a `
           + "multi-call index build.\n",
         `test: create file ${index} of ${extraFiles} to force two batches`,

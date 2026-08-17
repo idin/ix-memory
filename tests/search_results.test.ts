@@ -92,14 +92,14 @@ describe("a result explains itself", () => {
       [
         result({
           chunk: chunk({
-            path: "ix/memory/facts/core.md",
+            path: "other-memory/facts/core.md",
             headingPath: ["Core", "Imported (second-hand)"],
           }),
         }),
       ],
       CONTEXT,
     );
-    expect(text).toContain("ix/memory/facts/core.md");
+    expect(text).toContain("other-memory/facts/core.md");
     expect(text).toContain("Core > Imported (second-hand)");
   });
 
@@ -205,9 +205,9 @@ describe("what was not searched is reported", () => {
     const text = describeSearchResults([result()], {
       ...CONTEXT,
       searched: [
-        chunk({ path: "ix/memory/facts/core.md" }),
-        chunk({ path: "ix/memory/past/2026-08-12_done.md" }),
-        chunk({ path: "ix/memory/messages/archive/kip/note.md" }),
+        chunk({ path: "other-memory/facts/core.md" }),
+        chunk({ path: "other-memory/past/2026-08-12_done.md" }),
+        chunk({ path: "other-memory/messages/archive/kip/note.md" }),
       ],
     });
     expect(text).toMatch(/further file/);
@@ -223,8 +223,8 @@ describe("what was not searched is reported", () => {
       ...CONTEXT,
       includeDeep: true,
       searched: [
-        chunk({ path: "ix/memory/facts/core.md" }),
-        chunk({ path: "ix/memory/past/2026-08-12_done.md" }),
+        chunk({ path: "other-memory/facts/core.md" }),
+        chunk({ path: "other-memory/past/2026-08-12_done.md" }),
       ],
     });
     expect(text).not.toMatch(/further file/);

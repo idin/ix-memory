@@ -47,7 +47,7 @@ function comparison(overrides: Partial<Comparison> = {}): Comparison {
 describe("comparisonPath", () => {
   test("is dated, since a comparison is true of a moment", () => {
     expect(comparisonPath("air purifiers", WHEN)).toBe(
-      "ix/memory/comparisons/2026-08-13_air_purifiers.md",
+      "other-memory/comparisons/2026-08-13_air_purifiers.md",
     );
   });
 

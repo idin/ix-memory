@@ -20,7 +20,7 @@
  * chosen for tidiness — it is that limit, minus the room a repository-relative
  * path needs underneath a clone directory. A clone at
  * `C:\Users\<name>\code\keep` costs roughly 25 characters, and the deepest
- * path inside the namespace, `ix/memory/messages/archive/<agent>/`, costs
+ * path inside the namespace, `other-memory/messages/archive/<agent>/`, costs
  * roughly 45 more.
  *
  * That leaves 190 for the filename itself. Rounded down to 180 so a slightly

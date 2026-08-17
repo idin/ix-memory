@@ -14,13 +14,13 @@ import { assertManagedPath } from "../src/memory_tree";
 
 describe("assertManagedPath accepts paths inside the namespace", () => {
   test.each([
-    "ix/memory/facts/core.md",
-    "ix/memory/facts/inventory.yaml",
-    "ix/memory/facts/preferences/food.yaml",
-    "ix/memory/facts/home/kitchen.md",
-    "ix/memory/decisions/2026.md",
-    "ix/memory/capture_rules/what_to_capture.md",
-    "ix/memory/a/b/c/deep.md",
+    "other-memory/facts/core.md",
+    "other-memory/facts/inventory.yaml",
+    "other-memory/facts/preferences/food.yaml",
+    "other-memory/facts/home/kitchen.md",
+    "other-memory/decisions/2026.md",
+    "other-memory/capture_rules/what_to_capture.md",
+    "other-memory/a/b/c/deep.md",
   ])("%s", (path) => {
     expect(() => assertManagedPath(path)).not.toThrow();
   });
@@ -43,12 +43,12 @@ describe("assertManagedPath rejects paths outside the namespace", () => {
 describe("assertManagedPath rejects traversal and escapes", () => {
   test.each([
     ["parent traversal", "../secrets.md"],
-    ["traversal after prefix", "ix/memory/../../README.md"],
-    ["double traversal", "ix/memory/../../../escape.md"],
-    ["nested traversal", "ix/memory/sub/../../../package.json"],
+    ["traversal after prefix", "other-memory/../../README.md"],
+    ["double traversal", "other-memory/../../../escape.md"],
+    ["nested traversal", "other-memory/sub/../../../package.json"],
     ["absolute path", "/etc/passwd"],
-    ["absolute repo path", "/ix/memory/core.md"],
-    ["double slash", "ix/memory//core.md"],
+    ["absolute repo path", "/other-memory/core.md"],
+    ["double slash", "other-memory//core.md"],
   ])("%s: %s", (_name, path) => {
     expect(() => assertManagedPath(path)).toThrow();
   });
@@ -58,11 +58,11 @@ describe("assertManagedPath rejects malformed paths", () => {
   test.each([
     ["empty", ""],
     ["whitespace only", "   "],
-    ["leading space", " ix/memory/core.md"],
-    ["trailing space", "ix/memory/core.md "],
-    ["hidden file", "ix/memory/.hidden.md"],
-    ["hidden directory", "ix/memory/.git/config.md"],
-    ["folder rather than file", "ix/memory/facts/"],
+    ["leading space", " other-memory/core.md"],
+    ["trailing space", "other-memory/core.md "],
+    ["hidden file", "other-memory/.hidden.md"],
+    ["hidden directory", "other-memory/.git/config.md"],
+    ["folder rather than file", "other-memory/facts/"],
   ])("%s: %s", (_name, path) => {
     expect(() => assertManagedPath(path)).toThrow();
   });
@@ -70,11 +70,11 @@ describe("assertManagedPath rejects malformed paths", () => {
 
 describe("assertManagedPath rejects unexpected extensions", () => {
   test.each([
-    ["plain text", "ix/memory/facts/notes.txt"],
-    ["json", "ix/memory/facts/data.json"],
-    ["executable", "ix/memory/facts/script.sh"],
-    ["no extension", "ix/memory/facts/notes"],
-    ["extension in the middle", "ix/memory/facts/notes.md.txt"],
+    ["plain text", "other-memory/facts/notes.txt"],
+    ["json", "other-memory/facts/data.json"],
+    ["executable", "other-memory/facts/script.sh"],
+    ["no extension", "other-memory/facts/notes"],
+    ["extension in the middle", "other-memory/facts/notes.md.txt"],
   ])("%s: %s", (_name, path) => {
     expect(() => assertManagedPath(path)).toThrow();
   });
@@ -85,9 +85,9 @@ describe("assertManagedPath protects every instruction, not one file", () => {
   // equality check on one filename would leave the rest creatable, movable and
   // deletable.
   test.each([
-    "ix/memory/instructions/superseded_not_deleted.md",
-    "ix/memory/instructions/security_posture.md",
-    "ix/memory/instructions/README.md",
+    "other-memory/instructions/superseded_not_deleted.md",
+    "other-memory/instructions/security_posture.md",
+    "other-memory/instructions/README.md",
   ])("%s", (path) => {
     expect(() => assertManagedPath(path)).toThrow(/must not be moved or deleted/);
   });
@@ -95,11 +95,11 @@ describe("assertManagedPath protects every instruction, not one file", () => {
 
 describe("assertManagedPath error messages", () => {
   test("names the namespace when the path is outside it", () => {
-    expect(() => assertManagedPath("README.md")).toThrow(/ix\/memory\//);
+    expect(() => assertManagedPath("README.md")).toThrow(/other-memory\//);
   });
 
   test("explains that folders are implicit", () => {
-    expect(() => assertManagedPath("ix/memory/facts/")).toThrow(
+    expect(() => assertManagedPath("other-memory/facts/")).toThrow(
       /created implicitly/,
     );
   });

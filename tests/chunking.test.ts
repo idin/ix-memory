@@ -110,7 +110,7 @@ describe("stripSuperseded", () => {
 });
 
 describe("provenance travels with the chunk", () => {
-  const chunks = chunkFile(file("ix/memory/facts/core.md", CORE_FACTS));
+  const chunks = chunkFile(file("other-memory/facts/core.md", CORE_FACTS));
 
   test("an H3 under a provenance H2 keeps the second-hand marker", () => {
     // The most important test here. "Sold a Vancouver condo" is second-hand,
@@ -185,7 +185,7 @@ describe("yaml keeps the comments that carry corrections", () => {
   # The LG OLED B5 55" is in the second floor office, bought for gaming.
 `;
 
-  const chunks = chunkFile(file("ix/memory/facts/inventory.yaml", INVENTORY));
+  const chunks = chunkFile(file("other-memory/facts/inventory.yaml", INVENTORY));
 
   test("the correction is not dropped", () => {
     // A YAML parser drops comments, which would keep the superseded note and
@@ -221,7 +221,7 @@ The layout moved on 2026-08-09, so the paths in your note are stale.
 
   const chunks = chunkFile(
     file(
-      "ix/memory/messages/inbox/ada/2026-08-09T17-15_kip_no_picker.md",
+      "other-memory/messages/inbox/ada/2026-08-09T17-15_kip_no_picker.md",
       MESSAGE,
     ),
   );
@@ -259,7 +259,7 @@ Recorded 2026-08-12.
     // Splitting the pattern from the error it generalises leaves two chunks
     // that each mean less than the whole.
     const chunks = chunkFile(
-      file("ix/memory/misjudgements/2026-08-12_argued_a_cap.md", MISJUDGEMENT),
+      file("other-memory/misjudgements/2026-08-12_argued_a_cap.md", MISJUDGEMENT),
     );
     expect(chunks).toHaveLength(1);
     expect(chunks[0].text).toContain("Pattern:");
@@ -268,7 +268,7 @@ Recorded 2026-08-12.
 
   test("it still carries its title", () => {
     const chunks = chunkFile(
-      file("ix/memory/misjudgements/2026-08-12_argued_a_cap.md", MISJUDGEMENT),
+      file("other-memory/misjudgements/2026-08-12_argued_a_cap.md", MISJUDGEMENT),
     );
     expect(chunks[0].headingPath).toEqual([
       "Argued a cap needed protecting from the wrong thing",
@@ -281,7 +281,7 @@ describe("the token ceiling is never exceeded", () => {
     // Silent truncation is the model's behaviour above 512 tokens, and the
     // failure mode this whole design avoids.
     const long = `# Long\n\nPreamble.\n\n## Section\n\n${"word ".repeat(4000)}`;
-    const chunks = chunkFile(file("ix/memory/facts/long.md", long));
+    const chunks = chunkFile(file("other-memory/facts/long.md", long));
     expect(chunks.length).toBeGreaterThan(1);
     for (const chunk of chunks) {
       expect(estimateTokens(chunkSearchText(chunk))).toBeLessThan(
@@ -300,7 +300,7 @@ describe("the token ceiling is never exceeded", () => {
     const body = "A sentence about storage. ".repeat(60);
     const chunks = chunkFile(
       file(
-        "ix/memory/facts/wordy.md",
+        "other-memory/facts/wordy.md",
         `# Wordy\n\n${preamble}\n\n## A section\n\n${body}\n\n## Another\n\n${body}`,
       ),
     );
@@ -315,7 +315,7 @@ describe("the token ceiling is never exceeded", () => {
       (_unused, index) => `Sentence number ${index} about storage.`,
     ).join(" ");
     const chunks = chunkFile(
-      file("ix/memory/facts/long.md", `# Long\n\nPreamble.\n\n## S\n\n${sentences}`),
+      file("other-memory/facts/long.md", `# Long\n\nPreamble.\n\n## S\n\n${sentences}`),
     );
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.some((chunk) => chunk.text.includes("Sentence number 99"))).toBe(
@@ -326,26 +326,26 @@ describe("the token ceiling is never exceeded", () => {
 
 describe("chunk identity", () => {
   test("chunking is deterministic", () => {
-    const first = chunkFile(file("ix/memory/facts/core.md", CORE_FACTS));
-    const second = chunkFile(file("ix/memory/facts/core.md", CORE_FACTS));
+    const first = chunkFile(file("other-memory/facts/core.md", CORE_FACTS));
+    const second = chunkFile(file("other-memory/facts/core.md", CORE_FACTS));
     expect(second).toEqual(first);
   });
 
   test("ordinals are unique within a file", () => {
-    const chunks = chunkFile(file("ix/memory/facts/core.md", CORE_FACTS));
+    const chunks = chunkFile(file("other-memory/facts/core.md", CORE_FACTS));
     const ordinals = chunks.map((chunk) => chunk.ordinal);
     expect(new Set(ordinals).size).toBe(ordinals.length);
   });
 
   test("resolved work is marked deep", () => {
     const chunks = chunkFile(
-      file("ix/memory/past/2026-08-12_done.md", "# Done\n\nIt was finished.\n"),
+      file("other-memory/past/2026-08-12_done.md", "# Done\n\nIt was finished.\n"),
     );
     expect(chunks[0].isDeep).toBe(true);
   });
 
   test("current facts are not", () => {
-    const chunks = chunkFile(file("ix/memory/facts/core.md", CORE_FACTS));
+    const chunks = chunkFile(file("other-memory/facts/core.md", CORE_FACTS));
     expect(chunks.every((chunk) => !chunk.isDeep)).toBe(true);
   });
 });

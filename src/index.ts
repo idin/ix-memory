@@ -134,8 +134,8 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
   // Neither is configurable. A server that answers to a different name in
   // every deployment is harder to write about, support, or recognise.
   server = new McpServer({
-    name: "ix-memory",
-    title: "Ix Memory",
+    name: "other-memory",
+    title: "Other Memory",
     version: "0.4.0",
   });
 
@@ -467,7 +467,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
         inputSchema: {
           path: z
             .string()
-            .describe("Repo-relative path, e.g. ix/memory/facts/core.md"),
+            .describe("Repo-relative path, e.g. other-memory/facts/core.md"),
         },
       },
       async ({ path }) => {
@@ -543,7 +543,7 @@ export class MemoryMCP extends McpAgent<Env, unknown, UserProps> {
         inputSchema: {
           path: z
             .string()
-            .describe("Repo-relative path, e.g. ix/memory/facts/core.md"),
+            .describe("Repo-relative path, e.g. other-memory/facts/core.md"),
           text: z
             .string()
             .describe(

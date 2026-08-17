@@ -14,9 +14,9 @@ import type { MemoryRepoConfig } from "../../src/memory_repo";
  * must refuse to run against anything that is not the sandbox.
  */
 
-const TOKEN_VARIABLE = "GITHUB_TOKEN_IX_MEMORY_TEST_SANDBOX";
-const REPO_VARIABLE = "IX_MEMORY_TEST_SANDBOX_REPO";
-const DEFAULT_REPO = "idin/ix-memory-test-sandbox";
+const TOKEN_VARIABLE = "GITHUB_TOKEN_OTHER_MEMORY_TEST_SANDBOX";
+const REPO_VARIABLE = "OTHER_MEMORY_TEST_SANDBOX_REPO";
+const DEFAULT_REPO = "idin/other-memory-test-sandbox";
 
 /**
  * Read the sandbox configuration.
@@ -144,8 +144,8 @@ async function waitForFixture(): Promise<void> {
     FIXTURE_CORE_FACTS,
     FIXTURE_INSTRUCTIONS,
     FIXTURE_MESSAGE,
-    "ix/memory/facts/biscuit.md",
-    "ix/memory/facts/home/kitchen.md",
+    "other-memory/facts/biscuit.md",
+    "other-memory/facts/home/kitchen.md",
   ];
 
   // Anything a test creates must be gone again, or the next run's "create a
@@ -154,15 +154,15 @@ async function waitForFixture(): Promise<void> {
   // makes the next one fail against state it did not create, and the failure
   // points at the wrong thing entirely.
   const forbidden = [
-    "ix/memory/facts/rivers.md",
-    "ix/memory/facts/person.md",
-    "ix/memory/facts/added_later.md",
-    "ix/memory/facts/written_meanwhile.md",
-    "ix/memory/facts/encoding_check.md",
-    "ix/memory/facts/rebuild_check.md",
-    "ix/memory/facts/delete_check.md",
-    "ix/memory/facts/search_check.md",
-    "ix/memory/facts/superseded_check.md",
+    "other-memory/facts/rivers.md",
+    "other-memory/facts/person.md",
+    "other-memory/facts/added_later.md",
+    "other-memory/facts/written_meanwhile.md",
+    "other-memory/facts/encoding_check.md",
+    "other-memory/facts/rebuild_check.md",
+    "other-memory/facts/delete_check.md",
+    "other-memory/facts/search_check.md",
+    "other-memory/facts/superseded_check.md",
   ];
 
   while (Date.now() < deadline) {
@@ -237,12 +237,12 @@ export async function eventually<Result>(check: () => Promise<Result>): Promise<
 }
 
 /** A path in the fixture that every test can rely on existing. */
-export const FIXTURE_CORE_FACTS = "ix/memory/facts/core.md";
+export const FIXTURE_CORE_FACTS = "other-memory/facts/core.md";
 
 /** The read-only file, which no write may touch. */
 export const FIXTURE_INSTRUCTIONS =
-  "ix/memory/instructions/standing_instructions.md";
+  "other-memory/instructions/standing_instructions.md";
 
 /** The seeded message, for the inbox tests. */
 export const FIXTURE_MESSAGE =
-  "ix/memory/messages/inbox/ada/2026-02-03T09-14-22-000Z_kip_river_gauge_data.md";
+  "other-memory/messages/inbox/ada/2026-02-03T09-14-22-000Z_kip_river_gauge_data.md";

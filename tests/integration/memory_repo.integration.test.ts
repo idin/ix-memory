@@ -40,7 +40,7 @@ describe("reading", () => {
   });
 
   test("a missing file fails rather than returning nothing", async () => {
-    await expect(readMemory(config, "ix/memory/facts/not_here.md")).rejects.toThrow();
+    await expect(readMemory(config, "other-memory/facts/not_here.md")).rejects.toThrow();
   });
 
   test("lists every stored file with its size", async () => {
@@ -48,7 +48,7 @@ describe("reading", () => {
     const paths = files.map((file) => file.path);
 
     expect(paths).toContain(FIXTURE_CORE_FACTS);
-    expect(paths).toContain("ix/memory/facts/home/kitchen.md");
+    expect(paths).toContain("other-memory/facts/home/kitchen.md");
     expect(files.every((file) => file.bytes > 0)).toBe(true);
   });
 });
@@ -122,7 +122,7 @@ describe("appending", () => {
 
 describe("creating, moving and deleting", () => {
   test("creates a file that did not exist", async () => {
-    const path = "ix/memory/facts/rivers.md";
+    const path = "other-memory/facts/rivers.md";
 
     const result = await createMemoryFile(
       config,
@@ -149,7 +149,7 @@ describe("creating, moving and deleting", () => {
 
   test("moves a file in a single commit", async () => {
     const from = FIXTURE_CORE_FACTS;
-    const to = "ix/memory/facts/person.md";
+    const to = "other-memory/facts/person.md";
     const original = await readMemory(config, from);
 
     await moveMemoryFile(config, from, to, "refactor: rename the facts file");
@@ -166,7 +166,7 @@ describe("creating, moving and deleting", () => {
       moveMemoryFile(
         config,
         FIXTURE_CORE_FACTS,
-        "ix/memory/facts/biscuit.md",
+        "other-memory/facts/biscuit.md",
         "refactor: should fail",
       ),
     ).rejects.toThrow(/refusing to overwrite/i);
@@ -175,13 +175,13 @@ describe("creating, moving and deleting", () => {
   test("deletes a file and reports what was removed", async () => {
     const result = await deleteMemoryFile(
       config,
-      "ix/memory/facts/biscuit.md",
+      "other-memory/facts/biscuit.md",
       "chore: remove the dog",
     );
 
     expect(result.bytesRemoved).toBeGreaterThan(0);
     await eventually(async () => {
-      await expect(readMemory(config, "ix/memory/facts/biscuit.md")).rejects.toThrow();
+      await expect(readMemory(config, "other-memory/facts/biscuit.md")).rejects.toThrow();
     });
   });
 

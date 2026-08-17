@@ -15,7 +15,7 @@ import { storeFile } from "./chunk_fixture";
  * computed.
  */
 
-function findings(text: string, kind: string, path = "ix/memory/facts/x.md") {
+function findings(text: string, kind: string, path = "other-memory/facts/x.md") {
   return checkStore([storeFile(path, `# Title\n\nPreamble.\n\n${text}\n`)])
     .filter((finding) => finding.kind === kind)
     .map((finding) => finding.detail);
@@ -120,8 +120,8 @@ describe("first and second person", () => {
 
 describe("records of what happened are exempt", () => {
   test.each([
-    ["ix/memory/past/2026-08-12_something_finished.md"],
-    ["ix/memory/messages/archive/kip/2026-08-09T00-00_ada_note.md"],
+    ["other-memory/past/2026-08-12_something_finished.md"],
+    ["other-memory/messages/archive/kip/2026-08-09T00-00_ada_note.md"],
   ])("%s is not reported", (path) => {
     // Editing a resolved todo or an acted-on message to satisfy a style rule
     // would rewrite history to look as though the rule had always been
@@ -135,7 +135,7 @@ describe("records of what happened are exempt", () => {
     expect(
       subjects(
         "It was the clearest example.",
-        "ix/memory/future/todos/2026-08-14_do_something.md",
+        "other-memory/future/todos/2026-08-14_do_something.md",
       ),
     ).toHaveLength(1);
   });

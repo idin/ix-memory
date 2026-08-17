@@ -2,17 +2,17 @@
  * Where this server is allowed to write, inside whatever repo it is given.
  *
  * Everything lives under a single namespace directory so the server can be
- * pointed at a repo that already has other things in it. It claims `ix/memory/`
- * and nothing else — not the repo root, not any sibling directory — which
- * means a second tool could claim `ix/something-else/` in the same repo
- * without the two colliding.
+ * pointed at a repo that already has other things in it. It claims
+ * `other-memory/` and nothing else — not the repo root, not any sibling
+ * directory — which means a second tool could claim its own top-level
+ * directory in the same repo without the two colliding.
  *
  * This is the one place the layout is defined. Everything else derives from
  * it.
  */
 
 /** Root of everything this server owns. Nothing outside is ever written. */
-export const NAMESPACE = "ix/memory/";
+export const NAMESPACE = "other-memory/";
 
 /** Append-only log, one file per year. */
 export const DECISIONS_PREFIX = `${NAMESPACE}decisions/`;

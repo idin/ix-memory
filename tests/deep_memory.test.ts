@@ -18,37 +18,37 @@ import {
  */
 
 const PATHS = [
-  "ix/memory/facts/core.md",
-  "ix/memory/facts/frodo.md",
-  "ix/memory/future/todos/2026-08-13_do_something.md",
-  "ix/memory/past/2026-08-12_finished_thing.md",
-  "ix/memory/past/2026-08-12_another_finished_thing.md",
-  "ix/memory/messages/inbox/ada/2026-08-13T00-00-00-000Z_kip_hello.md",
-  "ix/memory/messages/archive/kip/2026-08-01T00-00-00-000Z_ada_older.md",
+  "other-memory/facts/core.md",
+  "other-memory/facts/frodo.md",
+  "other-memory/future/todos/2026-08-13_do_something.md",
+  "other-memory/past/2026-08-12_finished_thing.md",
+  "other-memory/past/2026-08-12_another_finished_thing.md",
+  "other-memory/messages/inbox/ada/2026-08-13T00-00-00-000Z_kip_hello.md",
+  "other-memory/messages/archive/kip/2026-08-01T00-00-00-000Z_ada_older.md",
 ];
 
 describe("isDeep", () => {
   test("resolved work is deep", () => {
-    expect(isDeep("ix/memory/past/2026-08-12_finished_thing.md")).toBe(true);
+    expect(isDeep("other-memory/past/2026-08-12_finished_thing.md")).toBe(true);
   });
 
   test("acted-on correspondence is deep", () => {
-    expect(isDeep("ix/memory/messages/archive/kip/note.md")).toBe(true);
+    expect(isDeep("other-memory/messages/archive/kip/note.md")).toBe(true);
   });
 
   test("facts are not", () => {
-    expect(isDeep("ix/memory/facts/core.md")).toBe(false);
+    expect(isDeep("other-memory/facts/core.md")).toBe(false);
   });
 
   test("an unresolved todo is not", () => {
     // The point is to hide what has already happened, not what is outstanding.
-    expect(isDeep("ix/memory/future/todos/2026-08-13_do_something.md")).toBe(
+    expect(isDeep("other-memory/future/todos/2026-08-13_do_something.md")).toBe(
       false,
     );
   });
 
   test("an unread message is not", () => {
-    expect(isDeep("ix/memory/messages/inbox/ada/note.md")).toBe(false);
+    expect(isDeep("other-memory/messages/inbox/ada/note.md")).toBe(false);
   });
 });
 
@@ -66,8 +66,8 @@ describe("applyDepth", () => {
 
   test("keeps current facts and outstanding work", () => {
     const shown = applyDepth(PATHS, { includeDeep: false });
-    expect(shown).toContain("ix/memory/facts/core.md");
-    expect(shown).toContain("ix/memory/future/todos/2026-08-13_do_something.md");
+    expect(shown).toContain("other-memory/facts/core.md");
+    expect(shown).toContain("other-memory/future/todos/2026-08-13_do_something.md");
   });
 });
 
@@ -86,7 +86,7 @@ describe("describeDeep", () => {
   });
 
   test("says nothing when nothing is held back", () => {
-    const note = describeDeep(summariseDeep(["ix/memory/facts/core.md"]));
+    const note = describeDeep(summariseDeep(["other-memory/facts/core.md"]));
     expect(note).toBeNull();
   });
 

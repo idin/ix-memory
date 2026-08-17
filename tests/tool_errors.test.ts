@@ -24,7 +24,7 @@ describe("reportingFailures", () => {
 
     const result = await reportingFailures({
       tool: "read_memory",
-      args: { path: "ix/memory/facts/core.md" },
+      args: { path: "other-memory/facts/core.md" },
       login: "idin",
       sink,
       run: async () => ({ content: [{ type: "text", text: "the file" }] }),
@@ -39,7 +39,7 @@ describe("reportingFailures", () => {
 
     const result = await reportingFailures({
       tool: "append_memory",
-      args: { path: "ix/memory/facts/core.md" },
+      args: { path: "other-memory/facts/core.md" },
       login: "idin",
       sink,
       run: async () => {
@@ -134,23 +134,23 @@ describe("reportingFailures", () => {
 describe("redactArguments", () => {
   it("keeps the keys that make a failure reproducible", () => {
     const redacted = redactArguments({
-      path: "ix/memory/facts/core.md",
+      path: "other-memory/facts/core.md",
       commit_message: "feat: record something",
     }) as Record<string, unknown>;
 
-    expect(redacted.path).toBe("ix/memory/facts/core.md");
+    expect(redacted.path).toBe("other-memory/facts/core.md");
     expect(redacted.commit_message).toBe("feat: record something");
   });
 
   it("does not copy memory content into the failure log", () => {
     const redacted = redactArguments({
-      path: "ix/memory/facts/core.md",
+      path: "other-memory/facts/core.md",
       text: "Something private the user said about their life.",
     }) as Record<string, unknown>;
 
     expect(redacted.text).not.toContain("private");
     expect(redacted.text).toContain("redacted");
-    expect(redacted.path).toBe("ix/memory/facts/core.md");
+    expect(redacted.path).toBe("other-memory/facts/core.md");
   });
 
   it("records how long the redacted value was", () => {

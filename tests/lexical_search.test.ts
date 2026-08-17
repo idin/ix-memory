@@ -27,8 +27,8 @@ Identity. Only stated facts, never inferred.
 `;
 
 const CHUNKS = [
-  ...chunkFile(file("ix/memory/facts/frodo.md", FRODO)),
-  ...chunkFile(file("ix/memory/facts/core.md", CORE)),
+  ...chunkFile(file("other-memory/facts/frodo.md", FRODO)),
+  ...chunkFile(file("other-memory/facts/core.md", CORE)),
 ];
 
 const OPTIONS = { fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE };
@@ -160,7 +160,7 @@ describe("searching the store", () => {
   test("a plain word finds the chunk holding it", () => {
     const hits = searchLexically(CHUNKS, "poodle", OPTIONS);
     expect(hits.length).toBeGreaterThan(0);
-    expect(hits[0].chunk.path).toBe("ix/memory/facts/frodo.md");
+    expect(hits[0].chunk.path).toBe("other-memory/facts/frodo.md");
   });
 
   test("a typo still finds it", () => {

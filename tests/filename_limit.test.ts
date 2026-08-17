@@ -79,7 +79,7 @@ describe("created files are subject to the same limit", () => {
 
   test("an ordinary subject is unaffected", () => {
     expect(pathForTopic("fact", "kitchen appliances", now)).toBe(
-      "ix/memory/facts/kitchen_appliances.md",
+      "other-memory/facts/kitchen_appliances.md",
     );
   });
 

@@ -13,8 +13,8 @@ function plan(overrides: Partial<RevertPlan> = {}): RevertPlan {
     targetCommitSha: "a".repeat(40),
     targetCommitDate: "2026-01-12T14:30:00Z",
     targetCommitMessage: "feat: something",
-    restored: ["ix/memory/facts/core.md"],
-    removed: ["ix/memory/facts/added_later.md"],
+    restored: ["other-memory/facts/core.md"],
+    removed: ["other-memory/facts/added_later.md"],
     unchanged: 3,
     ...overrides,
   };
@@ -29,17 +29,17 @@ describe("planDigest", () => {
 
   test("changes when a file would be removed that would not have been", async () => {
     // The failure this whole mechanism exists to prevent.
-    const previewed = plan({ removed: ["ix/memory/facts/added_later.md"] });
+    const previewed = plan({ removed: ["other-memory/facts/added_later.md"] });
     const recomputed = plan({
-      removed: ["ix/memory/facts/added_later.md", "ix/memory/facts/written_meanwhile.md"],
+      removed: ["other-memory/facts/added_later.md", "other-memory/facts/written_meanwhile.md"],
     });
 
     expect(await planDigest(previewed)).not.toBe(await planDigest(recomputed));
   });
 
   test("changes when a different file would be restored", async () => {
-    const a = plan({ restored: ["ix/memory/facts/core.md"] });
-    const b = plan({ restored: ["ix/memory/facts/biscuit.md"] });
+    const a = plan({ restored: ["other-memory/facts/core.md"] });
+    const b = plan({ restored: ["other-memory/facts/biscuit.md"] });
 
     expect(await planDigest(a)).not.toBe(await planDigest(b));
   });
@@ -48,8 +48,8 @@ describe("planDigest", () => {
     // Without a separator between the two lists these would digest
     // identically, and a token issued to restore a file would authorise
     // deleting it.
-    const restoring = plan({ restored: ["ix/memory/facts/core.md"], removed: [] });
-    const removing = plan({ restored: [], removed: ["ix/memory/facts/core.md"] });
+    const restoring = plan({ restored: ["other-memory/facts/core.md"], removed: [] });
+    const removing = plan({ restored: [], removed: ["other-memory/facts/core.md"] });
 
     expect(await planDigest(restoring)).not.toBe(await planDigest(removing));
   });
@@ -74,7 +74,7 @@ describe("revertOperation", () => {
     // The bug in one line: the same timestamp resolves to the same commit
     // however much the repository has changed since.
     const previewed = plan({ removed: [] });
-    const recomputed = plan({ removed: ["ix/memory/facts/written_meanwhile.md"] });
+    const recomputed = plan({ removed: ["other-memory/facts/written_meanwhile.md"] });
 
     expect(previewed.targetCommitSha).toBe(recomputed.targetCommitSha);
     expect(await revertOperation(previewed)).not.toBe(await revertOperation(recomputed));

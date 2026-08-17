@@ -14,7 +14,7 @@
 
 set -eu
 
-SANDBOX_REPO="${IX_MEMORY_TEST_SANDBOX_REPO:-idin/ix-memory-test-sandbox}"
+SANDBOX_REPO="${OTHER_MEMORY_TEST_SANDBOX_REPO:-idin/other-memory-test-sandbox}"
 
 # The one thing this script must never do. Force-pushing a fixture over
 # somebody's actual memory would be unrecoverable, and the difference between
@@ -38,8 +38,8 @@ esac
 repository_root=$(git rev-parse --show-toplevel)
 fixture_directory="$repository_root/tests/fixture"
 
-if [ ! -d "$fixture_directory/ix/memory" ]; then
-	echo "No fixture at $fixture_directory/ix/memory" >&2
+if [ ! -d "$fixture_directory/other-memory" ]; then
+	echo "No fixture at $fixture_directory/other-memory" >&2
 	exit 1
 fi
 
@@ -51,32 +51,32 @@ echo "Rebuilding $SANDBOX_REPO from the fixture..."
 cd "$work_directory"
 git init --quiet --initial-branch=main
 git config user.email "sandbox@example.invalid"
-git config user.name "ix-memory sandbox"
+git config user.name "other-memory sandbox"
 
 # Commit one: the instructions and the rules. Dated well before the rest, so a
 # revert target exists that predates every fact in the repository.
-mkdir -p ix/memory
-cp -R "$fixture_directory/ix/memory/instructions" ix/memory/
-cp -R "$fixture_directory/ix/memory/capture_rules" ix/memory/
+mkdir -p other-memory
+cp -R "$fixture_directory/other-memory/instructions" other-memory/
+cp -R "$fixture_directory/other-memory/capture_rules" other-memory/
 git add -A
 GIT_AUTHOR_DATE="2026-01-05T10:00:00Z" GIT_COMMITTER_DATE="2026-01-05T10:00:00Z" \
 	git commit --quiet -m "chore: standing instructions and capture rules"
 
 # Commit two: the facts.
-cp -R "$fixture_directory/ix/memory/facts" ix/memory/
+cp -R "$fixture_directory/other-memory/facts" other-memory/
 git add -A
 GIT_AUTHOR_DATE="2026-01-12T14:30:00Z" GIT_COMMITTER_DATE="2026-01-12T14:30:00Z" \
 	git commit --quiet -m "feat: record who this invented person is"
 
 # Commit three: the todo.
-cp -R "$fixture_directory/ix/memory/future" ix/memory/
+cp -R "$fixture_directory/other-memory/future" other-memory/
 git add -A
 GIT_AUTHOR_DATE="2026-01-15T09:05:00Z" GIT_COMMITTER_DATE="2026-01-15T09:05:00Z" \
 	git commit --quiet -m "feat: open a todo about the extractor fan"
 
 # Commit four: the decision log and the message.
-cp -R "$fixture_directory/ix/memory/decisions" ix/memory/
-cp -R "$fixture_directory/ix/memory/messages" ix/memory/
+cp -R "$fixture_directory/other-memory/decisions" other-memory/
+cp -R "$fixture_directory/other-memory/messages" other-memory/
 git add -A
 GIT_AUTHOR_DATE="2026-02-03T09:14:22Z" GIT_COMMITTER_DATE="2026-02-03T09:14:22Z" \
 	git commit --quiet -m "feat: decisions for the year, and a message to ada"

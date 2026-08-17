@@ -17,49 +17,49 @@ function file(path: string, text: string): StoreFile {
 describe("checkStore finds what a rule already forbids", () => {
   test("a file past the line limit", () => {
     const findings = checkStore([
-      file("ix/memory/facts/long.md", "line\n".repeat(150)),
+      file("other-memory/facts/long.md", "line\n".repeat(150)),
     ]);
     expect(findings.some((f) => f.kind === "over_the_line_limit")).toBe(true);
   });
 
   test("a file under the limit is left alone", () => {
     const findings = checkStore([
-      file("ix/memory/facts/short.md", "line\n".repeat(10)),
+      file("other-memory/facts/short.md", "line\n".repeat(10)),
     ]);
     expect(findings.some((f) => f.kind === "over_the_line_limit")).toBe(false);
   });
 
   test("a bare bank abbreviation", () => {
     const findings = checkStore([
-      file("ix/memory/facts/money.md", "Refinanced with TD in 2020."),
+      file("other-memory/facts/money.md", "Refinanced with TD in 2020."),
     ]);
     expect(findings.some((f) => f.kind === "bare_bank_name")).toBe(true);
   });
 
   test("the same abbreviation followed by Bank is fine", () => {
     const findings = checkStore([
-      file("ix/memory/facts/money.md", "Refinanced with TD Bank in 2020."),
+      file("other-memory/facts/money.md", "Refinanced with TD Bank in 2020."),
     ]);
     expect(findings.some((f) => f.kind === "bare_bank_name")).toBe(false);
   });
 
   test("a rejected abbreviation", () => {
     const findings = checkStore([
-      file("ix/memory/facts/work.md", "Needs doing ASAP."),
+      file("other-memory/facts/work.md", "Needs doing ASAP."),
     ]);
     expect(findings.some((f) => f.kind === "rejected_abbreviation")).toBe(true);
   });
 
   test("a stored age, which will be wrong within a year", () => {
     const findings = checkStore([
-      file("ix/memory/facts/dog.md", "Frodo is 13 years old."),
+      file("other-memory/facts/dog.md", "Frodo is 13 years old."),
     ]);
     expect(findings.some((f) => f.kind === "possible_derived_value")).toBe(true);
   });
 
   test("a stored elapsed time", () => {
     const findings = checkStore([
-      file("ix/memory/facts/core.md", "Moved here 3 years ago."),
+      file("other-memory/facts/core.md", "Moved here 3 years ago."),
     ]);
     expect(findings.some((f) => f.kind === "possible_derived_value")).toBe(true);
   });
@@ -68,7 +68,7 @@ describe("checkStore finds what a rule already forbids", () => {
     // The rule says store the date. Flagging the correct form would train
     // whoever reads these findings to ignore them.
     const findings = checkStore([
-      file("ix/memory/facts/dog.md", "Frodo, born 2013-05-06."),
+      file("other-memory/facts/dog.md", "Frodo, born 2013-05-06."),
     ]);
     expect(findings.some((f) => f.kind === "possible_derived_value")).toBe(false);
   });
@@ -78,7 +78,7 @@ describe("checkStore finds what a rule already forbids", () => {
     // it would report the rule as a violation of itself.
     const findings = checkStore([
       file(
-        "ix/memory/instructions/abbreviations_are_avoided.md",
+        "other-memory/instructions/abbreviations_are_avoided.md",
         "Rejected outright: ASAP, FYI, TBD. TD, RBC and BMO need Bank after them.",
       ),
     ]);
@@ -91,7 +91,7 @@ describe("checkStore finds what a rule already forbids", () => {
     // that are obviously wrong train whoever reads them to skip the rest.
     const findings = checkStore([
       file(
-        "ix/memory/future/todos/2026-08-12_check_abbreviations.md",
+        "other-memory/future/todos/2026-08-12_check_abbreviations.md",
         "Whitelist violations to detect: bare TD, RBC, BMO.",
       ),
     ]);
@@ -101,7 +101,7 @@ describe("checkStore finds what a rule already forbids", () => {
   test("a fact using a bare bank name is still flagged", () => {
     // The exemption must not swallow the real violations it sits beside.
     const findings = checkStore([
-      file("ix/memory/facts/home/455_beach.md", "Mortgage held with TD since 2019."),
+      file("other-memory/facts/home/455_beach.md", "Mortgage held with TD since 2019."),
     ]);
     expect(findings.some((f) => f.kind === "bare_bank_name")).toBe(true);
   });

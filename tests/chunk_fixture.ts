@@ -18,7 +18,7 @@ export function storeFile(path: string, text: string): StoreFile {
 /** A chunk, for testing what consumes chunks rather than what makes them. */
 export function chunk(overrides: Partial<MemoryChunk> = {}): MemoryChunk {
   return {
-    path: "ix/memory/facts/example.md",
+    path: "other-memory/facts/example.md",
     ordinal: 0,
     headingPath: [],
     filePreamble: "",

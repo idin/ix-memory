@@ -1,4 +1,4 @@
-# @ixmachina/memory
+# other-memory
 
 An MCP server that gives Claude a long-term memory stored in **a private
 GitHub repo you own**.
@@ -62,25 +62,24 @@ inbox.
 
 ## Where it writes
 
-Everything lives under **`ix/memory/`** in your repo, and nothing outside it
-is ever touched:
+Everything lives under **`other-memory/`** in your repo, and nothing outside
+it is ever touched:
 
 ```
 your-repo/
-  ix/
-    memory/
-      instructions.md        rules the assistant reads and cannot edit
-      capture_rules.md       what to record, learned over time
-      facts/                 what is true about you
-      decisions/2026.md      append-only log, one file per year
-      messages/inbox/<name>/ notes waiting for an agent
-      messages/archive/      notes already acted on
+  other-memory/
+    instructions.md        rules the assistant reads and cannot edit
+    capture_rules.md       what to record, learned over time
+    facts/                 what is true about you
+    decisions/2026.md      append-only log, one file per year
+    messages/inbox/<name>/ notes waiting for an agent
+    messages/archive/      notes already acted on
   ...anything else you keep in this repo, untouched
 ```
 
 This matters: you can point it at a repo that already has other things in it.
-The namespace also leaves room for other tools to claim `ix/<something>/`
-without colliding.
+The namespace also leaves room for other tools to claim their own top-level
+directory without colliding.
 
 ## Ages are computed, never stored
 
@@ -128,7 +127,7 @@ You need a Cloudflare account (free tier is enough) and a GitHub account.
 ### 1. A repo for your memory
 
 Create a private repo, or pick one you already have. The server only touches
-`ix/memory/` inside it.
+`other-memory/` inside it.
 
 ### 2. A fine-grained personal access token
 
@@ -160,10 +159,10 @@ Generate a client secret and keep both values.
 ```sh
 mkdir my-memory-server && cd my-memory-server
 npm init -y
-npm install @ixmachina/memory wrangler
+npm install other-memory wrangler
 
 curl -o wrangler.jsonc \
-  https://raw.githubusercontent.com/idin/ix-memory/main/wrangler.example.jsonc
+  https://raw.githubusercontent.com/idin/other-memory/main/wrangler.example.jsonc
 # Fill in the REPLACE_WITH_ values.
 
 npx wrangler kv namespace create OAUTH_KV
@@ -176,8 +175,8 @@ Point `main` in `wrangler.jsonc` at a one-line entry file:
 
 ```ts
 // src/worker.ts
-export { default } from "@ixmachina/memory/worker";
-export { MemoryMCP } from "@ixmachina/memory";
+export { default } from "other-memory/worker";
+export { MemoryMCP } from "other-memory";
 ```
 
 Both exports are needed: the default is the worker, and `MemoryMCP` is the
@@ -208,7 +207,7 @@ Workers observability retains. Point them somewhere durable if you want to
 read them back weeks later:
 
 ```ts
-import { MemoryMCP as Base } from "@ixmachina/memory";
+import { MemoryMCP as Base } from "other-memory";
 
 export class MemoryMCP extends Base {
   async init() {
@@ -244,7 +243,7 @@ assistant will keep calling the old schema and report features as missing.
 
 ## Instructions file
 
-The server reads `ix/memory/instructions.md` but can never write to it. That
+The server reads `other-memory/instructions.md` but can never write to it. That
 is where you put the rules you want the assistant to follow — what to record,
 what not to, how to phrase corrections. Yours to edit, not its to rewrite.
 

@@ -48,21 +48,21 @@ describe("planning a revert", () => {
   test("names the files it would remove", async () => {
     await createMemoryFile(
       config,
-      "ix/memory/facts/added_later.md",
+      "other-memory/facts/added_later.md",
       "# Added later\n",
       "feat: add a file after the fixture",
     );
 
     await eventually(async () => {
       const plan = await planRevert(config, AFTER_THE_FIXTURE);
-      expect(plan.removed).toContain("ix/memory/facts/added_later.md");
+      expect(plan.removed).toContain("other-memory/facts/added_later.md");
     });
   });
 
   test("changes nothing on its own", async () => {
     await planRevert(config, BEFORE_THE_TODO);
 
-    const stillThere = await readMemory(config, "ix/memory/future/todos/2026-01-15_replace_extractor_fan.md");
+    const stillThere = await readMemory(config, "other-memory/future/todos/2026-01-15_replace_extractor_fan.md");
     expect(stillThere.content).toContain("extractor fan");
   });
 });
@@ -71,7 +71,7 @@ describe("applying a revert", () => {
   test("restores what the plan said it would", async () => {
     await createMemoryFile(
       config,
-      "ix/memory/facts/added_later.md",
+      "other-memory/facts/added_later.md",
       "# Added later\n",
       "feat: add a file after the fixture",
     );
@@ -82,16 +82,16 @@ describe("applying a revert", () => {
     // refuses it as nothing to do.
     const plan = await eventually(async () => {
       const planned = await planRevert(config, AFTER_THE_FIXTURE);
-      expect(planned.removed).toContain("ix/memory/facts/added_later.md");
+      expect(planned.removed).toContain("other-memory/facts/added_later.md");
       return planned;
     });
     await applyRevert(config, plan, "chore: revert to the fixture");
 
     await eventually(async () => {
       await expect(
-        readMemory(config, "ix/memory/facts/added_later.md"),
+        readMemory(config, "other-memory/facts/added_later.md"),
       ).rejects.toThrow();
-      const restored = await readMemory(config, "ix/memory/facts/core.md");
+      const restored = await readMemory(config, "other-memory/facts/core.md");
       expect(restored.content).toContain("Wren Halloway");
     });
   });
@@ -118,7 +118,7 @@ describe("the confirmation token", () => {
     // nobody saw. That is the whole point of asking.
     await createMemoryFile(
       config,
-      "ix/memory/facts/added_later.md",
+      "other-memory/facts/added_later.md",
       "# Added later\n",
       "feat: add a file after the fixture",
     );
@@ -134,7 +134,7 @@ describe("the confirmation token", () => {
     // ... and now somebody else writes.
     await createMemoryFile(
       config,
-      "ix/memory/facts/written_meanwhile.md",
+      "other-memory/facts/written_meanwhile.md",
       "# Written between the preview and the confirmation\n",
       "feat: a file the user never saw in any plan",
     );
@@ -143,7 +143,7 @@ describe("the confirmation token", () => {
     // the deletions.
     const recomputed = await eventually(async () => {
       const replanned = await planRevert(config, AFTER_THE_FIXTURE);
-      expect(replanned.removed).toContain("ix/memory/facts/written_meanwhile.md");
+      expect(replanned.removed).toContain("other-memory/facts/written_meanwhile.md");
       return replanned;
     });
 

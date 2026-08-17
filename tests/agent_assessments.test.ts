@@ -34,7 +34,7 @@ function candidates(count: number): CandidateRecord[] {
     "poodle",
     "idin",
     Array.from({ length: count }, (_unused, index) => ({
-      path: `ix/memory/facts/file_${index}.md`,
+      path: `other-memory/facts/file_${index}.md`,
       ordinal: 0,
       chunkLength: 120,
       features: FEATURES,
@@ -103,8 +103,8 @@ describe("applying judgments", () => {
   test("named results are labelled", () => {
     const assessed = applyAssessments(
       candidates(4),
-      [{ path: "ix/memory/facts/file_0.md", ordinal: 0 }],
-      [{ path: "ix/memory/facts/file_1.md", ordinal: 0 }],
+      [{ path: "other-memory/facts/file_0.md", ordinal: 0 }],
+      [{ path: "other-memory/facts/file_1.md", ordinal: 0 }],
       "ada",
     );
     expect(assessed[0].agentAssessment).toBe("relevant");
@@ -115,7 +115,7 @@ describe("applying judgments", () => {
     // The failure this whole design guards against.
     const assessed = applyAssessments(
       candidates(5),
-      [{ path: "ix/memory/facts/file_0.md", ordinal: 0 }],
+      [{ path: "other-memory/facts/file_0.md", ordinal: 0 }],
       [],
       "ada",
     );
@@ -138,7 +138,7 @@ describe("applying judgments", () => {
       null,
       [
         {
-          path: "ix/memory/facts/core.md",
+          path: "other-memory/facts/core.md",
           ordinal: 0,
           chunkLength: 120,
           features: FEATURES,
@@ -146,7 +146,7 @@ describe("applying judgments", () => {
           fuzzyRank: null,
         },
         {
-          path: "ix/memory/facts/core.md",
+          path: "other-memory/facts/core.md",
           ordinal: 3,
           chunkLength: 90,
           features: FEATURES,
@@ -158,7 +158,7 @@ describe("applying judgments", () => {
     );
     const assessed = applyAssessments(
       records,
-      [{ path: "ix/memory/facts/core.md", ordinal: 3 }],
+      [{ path: "other-memory/facts/core.md", ordinal: 3 }],
       [],
       "ada",
     );
@@ -168,7 +168,7 @@ describe("applying judgments", () => {
 
   test("the original records are not mutated", () => {
     const records = candidates(2);
-    applyAssessments(records, [{ path: "ix/memory/facts/file_0.md", ordinal: 0 }], [], "ada");
+    applyAssessments(records, [{ path: "other-memory/facts/file_0.md", ordinal: 0 }], [], "ada");
     expect(records[0].agentAssessment).toBe("unassessed");
   });
 });
@@ -177,8 +177,8 @@ describe("describing what was recorded", () => {
   test("counts each state separately", () => {
     const assessed = applyAssessments(
       candidates(4),
-      [{ path: "ix/memory/facts/file_0.md", ordinal: 0 }],
-      [{ path: "ix/memory/facts/file_1.md", ordinal: 0 }],
+      [{ path: "other-memory/facts/file_0.md", ordinal: 0 }],
+      [{ path: "other-memory/facts/file_1.md", ordinal: 0 }],
       "ada",
     );
     const text = describeAssessments(assessed);
@@ -190,7 +190,7 @@ describe("describing what was recorded", () => {
   test("says why unjudged is not a rejection", () => {
     const assessed = applyAssessments(
       candidates(3),
-      [{ path: "ix/memory/facts/file_0.md", ordinal: 0 }],
+      [{ path: "other-memory/facts/file_0.md", ordinal: 0 }],
       [],
       "ada",
     );

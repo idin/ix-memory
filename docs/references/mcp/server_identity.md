@@ -51,8 +51,8 @@ The safe shape:
 
 ```ts
 new McpServer({
-  name: "ix-memory",     // slug: matches the package and repository
-  title: "Ix Memory",    // what a person reads
+  name: "other-memory",     // slug: matches the package and repository
+  title: "Other Memory",    // what a person reads
   version: "0.2.0",
 });
 ```

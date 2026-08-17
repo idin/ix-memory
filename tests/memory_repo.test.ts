@@ -16,12 +16,12 @@ import {
 
 describe("assertReadable accepts paths inside the namespace", () => {
   test.each([
-    "ix/memory/facts/core.md",
-    "ix/memory/facts/preferences/food.yaml",
-    "ix/memory/decisions/2026.md",
-    "ix/memory/capture_rules/what_to_capture.md",
-    "ix/memory/instructions/superseded_not_deleted.md",
-    "ix/memory/messages/inbox/ada/note.md",
+    "other-memory/facts/core.md",
+    "other-memory/facts/preferences/food.yaml",
+    "other-memory/decisions/2026.md",
+    "other-memory/capture_rules/what_to_capture.md",
+    "other-memory/instructions/superseded_not_deleted.md",
+    "other-memory/messages/inbox/ada/note.md",
   ])("%s", (path) => {
     expect(() => assertReadable(path)).not.toThrow();
   });
@@ -34,7 +34,7 @@ describe("assertReadable rejects everything else in the repo", () => {
     ["source code", "src/index.ts"],
     ["a sibling namespace", "ix/drive/cache.md"],
     ["the old layout", "memory/core.md"],
-    ["traversal", "ix/memory/../.env"],
+    ["traversal", "other-memory/../.env"],
     ["absolute path", "/etc/passwd"],
     ["empty", ""],
   ])("%s: %s", (_name, path) => {
@@ -44,10 +44,10 @@ describe("assertReadable rejects everything else in the repo", () => {
 
 describe("assertAppendable accepts the same namespace", () => {
   test.each([
-    "ix/memory/facts/core.md",
-    "ix/memory/facts/preferences/food.yaml",
-    "ix/memory/decisions/2026.md",
-    "ix/memory/capture_rules/what_to_capture.md",
+    "other-memory/facts/core.md",
+    "other-memory/facts/preferences/food.yaml",
+    "other-memory/decisions/2026.md",
+    "other-memory/capture_rules/what_to_capture.md",
   ])("%s", (path) => {
     expect(() => assertAppendable(path)).not.toThrow();
   });
@@ -58,11 +58,11 @@ describe("assertAppendable protects every instruction, not one file", () => {
   // them into a folder without widening the guard would have left every rule
   // writable — the protection removed by the act of tidying.
   test.each([
-    "ix/memory/instructions/superseded_not_deleted.md",
-    "ix/memory/instructions/never_save_inferences.md",
-    "ix/memory/instructions/security_posture.md",
-    "ix/memory/instructions/README.md",
-    "ix/memory/instructions/nested/deeper/invented.md",
+    "other-memory/instructions/superseded_not_deleted.md",
+    "other-memory/instructions/never_save_inferences.md",
+    "other-memory/instructions/security_posture.md",
+    "other-memory/instructions/README.md",
+    "other-memory/instructions/nested/deeper/invented.md",
   ])("readable but not writable: %s", (path) => {
     expect(() => assertReadable(path)).not.toThrow();
     expect(() => assertAppendable(path)).toThrow(/read-only/);
@@ -74,7 +74,7 @@ describe("assertAppendable rejects everything outside", () => {
     ["repo root", "README.md"],
     ["source code", "src/index.ts"],
     ["a sibling namespace", "ix/drive/cache.md"],
-    ["traversal", "ix/memory/../README.md"],
+    ["traversal", "other-memory/../README.md"],
     ["absolute path", "/etc/passwd"],
     ["empty", ""],
   ])("%s: %s", (_name, path) => {
@@ -84,7 +84,7 @@ describe("assertAppendable rejects everything outside", () => {
 
 describe("path descriptions", () => {
   test("readable description names the namespace", () => {
-    expect(describeReadablePaths()).toContain("ix/memory/");
+    expect(describeReadablePaths()).toContain("other-memory/");
   });
 
   test("appendable description excludes the instructions file", () => {

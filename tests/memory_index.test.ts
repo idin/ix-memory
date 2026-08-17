@@ -120,7 +120,7 @@ describe("the default memory index", () => {
     await expect(
       noOpMemoryIndex.replaceFile(
         { commitSha: "abc", model: "m", pooling: "mean" },
-        "ix/memory/facts/x.md",
+        "other-memory/facts/x.md",
         [{ chunk: chunk(), vector: null }],
       ),
     ).resolves.toBeUndefined();
@@ -131,7 +131,7 @@ describe("the default memory index", () => {
       noOpMemoryIndex.carryForward({
         from: { commitSha: "old", model: "m", pooling: "mean" },
         to: { commitSha: "new", model: "m", pooling: "mean" },
-        exceptPaths: ["ix/memory/facts/changed.md"],
+        exceptPaths: ["other-memory/facts/changed.md"],
       }),
     ).resolves.toBeUndefined();
   });

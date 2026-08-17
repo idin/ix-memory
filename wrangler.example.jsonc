@@ -4,7 +4,7 @@
   // Copy this to wrangler.jsonc and fill in the marked values.
   // wrangler.jsonc is gitignored, so your account details stay yours.
 
-  "name": "ix-memory",
+  "name": "other-memory-mcp",
   "main": "src/worker.ts",
   "compatibility_date": "2025-03-10",
   "compatibility_flags": ["nodejs_compat"],
@@ -35,7 +35,7 @@
   // Not secret. Secrets are set with `wrangler secret put` — see the README.
   "vars": {
     // The GitHub repo where your memory is stored. It should be private.
-    // The server only ever touches ix/memory/ inside it, so an existing
+    // The server only ever touches other-memory/ inside it, so an existing
     // repo with other things in it is fine.
     "MEMORY_REPO_OWNER": "REPLACE_WITH_YOUR_GITHUB_USERNAME",
     "MEMORY_REPO_NAME": "REPLACE_WITH_YOUR_REPO_NAME",

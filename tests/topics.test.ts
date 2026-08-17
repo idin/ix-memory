@@ -61,49 +61,49 @@ describe("subjectToSlug", () => {
 
 describe("pathForTopic puts things where they belong", () => {
   test("a fact", () => {
-    expect(pathForTopic("fact", "core", WHEN)).toBe("ix/memory/facts/core.md");
+    expect(pathForTopic("fact", "core", WHEN)).toBe("other-memory/facts/core.md");
   });
 
   test("a fact in a subfolder", () => {
     expect(pathForTopic("fact", "home/kitchen", WHEN)).toBe(
-      "ix/memory/facts/home/kitchen.md",
+      "other-memory/facts/home/kitchen.md",
     );
   });
 
   test("an inventory is YAML, not markdown", () => {
     expect(pathForTopic("inventory", "owned things", WHEN)).toBe(
-      "ix/memory/facts/owned_things.yaml",
+      "other-memory/facts/owned_things.yaml",
     );
   });
 
   test("a todo is dated and filed under future", () => {
     expect(pathForTopic("todo", "check the lease", WHEN)).toBe(
-      "ix/memory/future/todos/2026-08-09_check_the_lease.md",
+      "other-memory/future/todos/2026-08-09_check_the_lease.md",
     );
   });
 
   test("a proposal is dated and filed under future", () => {
     expect(pathForTopic("proposal", "move the dns to cloudflare", WHEN)).toBe(
-      "ix/memory/future/proposals/2026-08-09_move_the_dns_to_cloudflare.md",
+      "other-memory/future/proposals/2026-08-09_move_the_dns_to_cloudflare.md",
     );
   });
 
   test("an idea is dated and filed under future", () => {
     expect(pathForTopic("idea", "a tool that compares things", WHEN)).toBe(
-      "ix/memory/future/ideas/2026-08-09_a_tool_that_compares_things.md",
+      "other-memory/future/ideas/2026-08-09_a_tool_that_compares_things.md",
     );
   });
 
   test("a misjudgement is dated and filed on its own", () => {
     // The mirror of decisions/: what was wrong, beside what was chosen.
     expect(pathForTopic("misjudgement", "asserted a path without checking", WHEN)).toBe(
-      "ix/memory/misjudgements/2026-08-09_asserted_a_path_without_checking.md",
+      "other-memory/misjudgements/2026-08-09_asserted_a_path_without_checking.md",
     );
   });
 
   test("a decision goes in the decisions folder", () => {
     expect(pathForTopic("decision", "use postgres", WHEN)).toBe(
-      "ix/memory/decisions/use_postgres.md",
+      "other-memory/decisions/use_postgres.md",
     );
   });
 });
@@ -121,8 +121,10 @@ describe("derived paths obey the naming rules", () => {
     for (const topic of topicNames()) {
       for (const subject of subjects) {
         const path = pathForTopic(topic, subject, WHEN);
-        // Strip any yyyy-mm-dd, then nothing hyphenated should remain.
-        const withoutDates = path.replace(/\d{4}-\d{2}-\d{2}/g, "");
+        // Strip the namespace prefix and any yyyy-mm-dd, then nothing
+        // hyphenated should remain.
+        const withoutNamespace = path.replace(/^other-memory\//, "");
+        const withoutDates = withoutNamespace.replace(/\d{4}-\d{2}-\d{2}/g, "");
         expect(withoutDates).not.toContain("-");
       }
     }
@@ -131,7 +133,7 @@ describe("derived paths obey the naming rules", () => {
   test("every path stays inside the namespace", () => {
     for (const topic of topicNames()) {
       for (const subject of subjects) {
-        expect(pathForTopic(topic, subject, WHEN)).toMatch(/^ix\/memory\//);
+        expect(pathForTopic(topic, subject, WHEN)).toMatch(/^other-memory\//);
       }
     }
   });
@@ -155,7 +157,7 @@ describe("derived paths obey the naming rules", () => {
   test("a subject cannot escape the namespace", () => {
     // Traversal segments are stripped by the slug, not passed through.
     const path = pathForTopic("fact", "../../../etc/passwd", WHEN);
-    expect(path).toMatch(/^ix\/memory\/facts\//);
+    expect(path).toMatch(/^other-memory\/facts\//);
     expect(path).not.toContain("..");
   });
 });
@@ -183,7 +185,7 @@ describe("topic metadata", () => {
 
   test("every topic writes inside the namespace", () => {
     for (const name of topicNames()) {
-      expect(TOPICS[name].prefix).toMatch(/^ix\/memory\//);
+      expect(TOPICS[name].prefix).toMatch(/^other-memory\//);
     }
   });
 });

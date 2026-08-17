@@ -1,12 +1,12 @@
 {
-  "name": "@ixmachina/memory",
-  "version": "0.6.0",
+  "name": "other-memory",
+  "version": "1.0.0",
   "description": "MCP server giving Claude a long-term memory in a GitHub repo you own",
   "license": "MIT",
   "author": "Idin K",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/idin/ix-memory.git"
+    "url": "git+https://github.com/idin/other-memory.git"
   },
   "keywords": [
     "mcp",
@@ -54,8 +54,8 @@
     "vitest": "^4.1.10",
     "wrangler": "^4.120.0"
   },
-  "homepage": "https://github.com/idin/ix-memory#readme",
+  "homepage": "https://github.com/idin/other-memory#readme",
   "bugs": {
-    "url": "https://github.com/idin/ix-memory/issues"
+    "url": "https://github.com/idin/other-memory/issues"
   }
 }
