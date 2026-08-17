@@ -6,8 +6,9 @@ import {
   readHeadCommit,
 } from "../../src/index_rebuild";
 import { DEFAULT_FUZZY_MINIMUM_SCORE, searchLexically } from "../../src/lexical_search";
+import { cascadeResults } from "../../src/search_cascade";
 import { createMemoryFile, deleteMemoryFile } from "../../src/memory_tree";
-import { FILES_INDEXED_PER_SEARCH } from "../../src/search_config";
+import { DEFAULT_SEARCH_QUOTAS, FILES_INDEXED_PER_SEARCH } from "../../src/search_config";
 import type {
   MemoryIndex,
   MemoryIndexChunk,
@@ -172,9 +173,16 @@ describe("searching what was actually read", () => {
     await eventually(async () => {
       const files = await readWholeStore(config);
       const chunks = files.flatMap((file) => chunkFile(file));
+      // searchLexically's own output is deliberately unsorted (see its
+      // module comment) — ranking happens in cascadeResults, which is what
+      // any real search actually goes through. Reading searchLexically's
+      // hits[0] directly, as this test used to, asserts an ordering the
+      // function never promised.
       const hits = searchLexically(chunks, "Rega Planar", { fuzzyMinimumScore: DEFAULT_FUZZY_MINIMUM_SCORE });
       expect(hits.length).toBeGreaterThan(0);
-      expect(hits[0].chunk.path).toBe(path);
+      const ranked = cascadeResults(hits, [], DEFAULT_SEARCH_QUOTAS);
+      expect(ranked.length).toBeGreaterThan(0);
+      expect(ranked[0].chunk.path).toBe(path);
     });
   });
 
@@ -232,6 +240,7 @@ function inProcessMemoryIndex(): MemoryIndex {
     `${identity.model}|${identity.pooling}`;
 
   return {
+    maxCarryForwardExclusions: null,
     async load(identity) {
       const prefix = `${identity.commitSha}|${identity.model}|${identity.pooling}|`;
       return [...rows.entries()]

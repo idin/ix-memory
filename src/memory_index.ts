@@ -53,6 +53,20 @@ export type MemoryIndexIdentity = {
  * not care which.
  */
 export type MemoryIndex = {
+  /**
+   * How many paths `carryForward` can exclude in one call, or `null` when
+   * there is no such limit.
+   *
+   * A store backed by a statement with a bound-parameter cap (D1's is 100)
+   * cannot exclude more paths than that cap allows minus its fixed
+   * parameters — `carryForward`'s own exclusion list is bound as one
+   * parameter per path, alongside a handful of fixed ones. A commit
+   * changing more files than fit is a case `carryForward` cannot answer
+   * correctly, the same way an untracked base commit or a truncated
+   * comparison already are: the caller falls back to a full rebuild rather
+   * than call `carryForward` with more paths than it can hold.
+   */
+  maxCarryForwardExclusions: number | null;
   /** Read every chunk for an identity, with vectors where they exist. */
   load(identity: MemoryIndexIdentity): Promise<MemoryIndexChunk[]>;
   /** Replace every chunk for one file. Delete-then-insert, not update. */
@@ -95,6 +109,7 @@ export type MemoryIndex = {
  * trade for a library that cannot assume infrastructure.
  */
 export const noOpMemoryIndex: MemoryIndex = {
+  maxCarryForwardExclusions: null,
   load: async () => [],
   replaceFile: async () => {},
   removeFile: async () => {},

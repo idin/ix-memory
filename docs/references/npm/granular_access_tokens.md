@@ -1,0 +1,86 @@
+# Granular access tokens
+
+How npm's package-scoped tokens actually work, and the trap they set for a
+brand-new package name.
+
+## The scoping model
+
+`npm token create` (the CLI command) cannot create a granular, per-package
+token — it only creates account-wide read-only or publish tokens. Granular
+tokens, scoped to one or more specific package names, are created through
+npmjs.com's web UI only.
+
+A granular token's scope is fixed at creation time to an explicit list of
+package names (`"scopes": [{"name": "@ixmachina/memory", "type": "package"}]`
+in the registry's own token metadata). There is no CLI or API call that edits
+an existing token's scope — a token scoped to one package name cannot be
+repointed at another. Publishing a *different* package with it fails with
+`403 Forbidden`, not a clearer scope-mismatch error.
+
+## The chicken-and-egg for a new package
+
+npmjs.com's granular-token UI can only scope a token to a package that
+**already exists on the registry**. A package that has never been published
+cannot appear in that picker.
+
+So the very first publish of a brand-new package name cannot go through a
+granular token scoped to that package — there is nothing yet to scope it to.
+That first publish has to happen some other way (an authenticated interactive
+session, e.g. `npm login` + OTP, or the npmjs.com web publish flow), after
+which a granular token can be created scoped to the now-existing package, for
+every publish after the first.
+
+This is the same shape as the fine-grained GitHub PAT problem, and it is not
+solvable by choosing a different kind of token — it is a one-time,
+unavoidable bootstrap step for any new package name, not a symptom of doing
+something wrong.
+
+## What this means in practice
+
+- Renaming a published package (new name, not just new version) means the old
+  package's scoped token does **not** carry over — a new token, scoped to the
+  new name, has to be created after the new name's first publish.
+- The first publish under a new name needs an authenticated human, not an
+  agent holding only a scoped token — there is no token that could exist yet
+  which would let an agent do it unattended.
+- **There is no npm publish flow on npmjs.com itself.** Publishing only
+  happens via `npm publish` from an authenticated CLI. Do not suggest a
+  browser-based publish path — it does not exist. (Confirmed by checking
+  `docs.npmjs.com/cli/v10/commands/npm-publish`, which documents no such
+  feature.)
+- 2FA-via-passkey-only accounts (no TOTP) cannot supply `--otp=<code>` to
+  `npm publish` — `npm login` succeeds via passkey, but `npm publish` still
+  demands a TOTP code the account cannot produce, and fails with `EOTP` even
+  after a successful login.
+
+## The proven bootstrap method
+
+This is the exact method that worked once already for `@ixmachina/memory`,
+and is the one to repeat — not a new design, a replay of a working recipe:
+
+1. On npmjs.com, while logged in: profile icon (top right) → **Access
+   Tokens** → **Generate New Token** → **Granular Access Token**.
+2. Set packages/scopes to **"All packages"** (the new package cannot be
+   selected individually since it does not exist yet), permissions to
+   **Read and write**, and enable **bypass two-factor authentication** on
+   the same form. Click **Generate Token** and copy it immediately — it is
+   shown once only. This is a one-time bootstrap token, used once.
+3. Use that token for the **first** `npm publish` of the new package name
+   (`npm publish --access public --//registry.npmjs.org/:_authToken=<token>`,
+   or set it in `.npmrc`). This is what actually avoids the `EOTP` error —
+   `bypass_2fa` is a property of the token, not of the login session.
+4. Once the package exists on the registry, go back to npmjs.com and create
+   a **second**, narrowly-scoped token — `bypass_2fa: true`, scoped only to
+   the new package name — mirroring exactly how the old package's token was
+   made.
+5. Revoke the broad bootstrap token from step 2. It should never outlive the
+   one publish it was needed for.
+6. Save the new narrow token to `~/code/.env` alongside the account's other
+   `NPM_TOKEN_*` entries, following the same naming convention.
+
+## Source
+
+Observed directly against the `ixmachina` npm account, 2026-08-16 —
+`GET https://registry.npmjs.org/-/npm/v1/tokens` (with a valid token) returns
+each token's own `scopes` array, which is where the `@ixmachina/memory`-only
+scoping was confirmed rather than assumed.

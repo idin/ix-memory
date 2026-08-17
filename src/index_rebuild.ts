@@ -122,7 +122,7 @@ export type ComparisonPlan = {
 /**
  * Work out what needs rebuilding between two commits.
  *
- * Falls back to a full rebuild in three cases, each because a partial index
+ * Falls back to a full rebuild in four cases, each because a partial index
  * reports success while covering only part of the store:
  *
  * - Nothing has been built yet.
@@ -130,16 +130,25 @@ export type ComparisonPlan = {
  *   comparison at 250 commits.
  * - The base commit is unreachable, which happens after a force-push. The
  *   revert tool makes history rewriting a real operation here.
+ * - The change set is larger than the index can carry forward in one call.
+ *   A store with a bound-parameter cap (D1's is 100) cannot exclude more
+ *   paths than fit in one `carryForward` statement; asking it to would fail
+ *   outright rather than index only part of the store, so the fallback here
+ *   is what keeps a large batch change — a folder-wide rename, say —
+ *   from failing the whole search instead of just costing a full reindex.
  *
  * @param config - Where the memory lives.
  * @param builtSha - The commit the index was last built from, or null.
  * @param headSha - The commit to bring it to.
+ * @param maxCarryForwardExclusions - The index's own limit on how many
+ *   paths `carryForward` can exclude in one call, or `null` for no limit.
  * @returns What to do.
  */
 export async function planRebuild(
   config: MemoryRepoConfig,
   builtSha: string | null,
   headSha: string,
+  maxCarryForwardExclusions: number | null = null,
 ): Promise<ComparisonPlan> {
   if (!builtSha) {
     return {
@@ -175,9 +184,24 @@ export async function planRebuild(
       };
     }
 
+    const changes = planChanges(files as ComparedFile[]);
+    if (
+      maxCarryForwardExclusions !== null
+      && changes.length > maxCarryForwardExclusions
+    ) {
+      return {
+        mode: "full",
+        changes: [],
+        reason:
+          `${changes.length} files changed since the last build, past the `
+          + `${maxCarryForwardExclusions} the index can carry forward in one `
+          + "call, so the whole store is being reindexed.",
+      };
+    }
+
     return {
       mode: "incremental",
-      changes: planChanges(files as ComparedFile[]),
+      changes,
       reason: null,
     };
   } catch (error) {

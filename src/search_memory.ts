@@ -149,7 +149,12 @@ async function currentChunks(
     model: EMBEDDING_MODEL,
     pooling: EMBEDDING_POOLING,
   });
-  const plan = await planRebuild(config, builtSha, headSha);
+  const plan = await planRebuild(
+    config,
+    builtSha,
+    headSha,
+    index.maxCarryForwardExclusions,
+  );
 
   if (plan.mode === "up_to_date") {
     return { indexed: await index.load(identity), mode: plan.mode, reason: null };
